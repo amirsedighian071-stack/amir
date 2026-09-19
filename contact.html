@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تماس با من – امیر صدیقیان</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar" id="navbar">
+        <div class="container nav-container">
+            <a href="index.html" class="logo"><i class="fas fa-code"></i><span data-text="brand">AmirSedighian</span></a>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link" data-section="home">خانه</a></li>
+                <li><a href="shop.html" class="nav-link" data-section="shop">فروشگاه</a></li>
+                <li><a href="projects.html" class="nav-link" data-section="projects">نمونه‌کارها</a></li>
+                <li><a href="about.html" class="nav-link" data-section="about">درباره من</a></li>
+                <li><a href="contact.html" class="nav-link" data-section="contact">تماس با من</a></li>
+            </ul>
+            <div class="nav-actions">
+                <button id="themeToggle" class="theme-toggle"><i class="fas fa-moon"></i></button>
+                <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <header class="page-header">
+        <div class="container">
+            <nav class="breadcrumb"><a href="index.html">خانه</a><i class="fas fa-chevron-left"></i><span>تماس با من</span></nav>
+            <h1 class="page-title" data-text="contact_title">تماس با من</h1>
+            <p class="page-subtitle" data-text="contact_subtitle">برای سفارش پروژه، مشاوره و یا سوالات خود از راه‌های زیر با من در ارتباط باشید.</p>
+        </div>
+    </header>
+
+    <section class="page-section">
+        <div class="container">
+            <div class="contact-grid">
+                <div class="contact-info" data-visible="contactInfo" id="contactInfo"></div>
+                <form class="contact-form" id="contactForm" data-visible="contactForm">
+                    <h3 data-text="contactForm_title">ارسال پیام</h3>
+                    <div class="form-group">
+                        <label for="cName" data-text="contact_name">نام و نام خانوادگی *</label>
+                        <input type="text" id="cName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cPhone" data-text="contact_phone">شماره تماس *</label>
+                        <input type="tel" id="cPhone" placeholder="مثلاً ۰۹۱۲۳۴۵۶۷۸۹" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cEmail" data-text="contact_email">ایمیل</label>
+                        <input type="email" id="cEmail">
+                    </div>
+                    <div class="form-group">
+                        <label for="cSubject" data-text="contact_subject">موضوع</label>
+                        <input type="text" id="cSubject" placeholder="موضوع پیام">
+                    </div>
+                    <div class="form-group">
+                        <label for="cMessage" data-text="contact_message">پیام *</label>
+                        <textarea id="cMessage" rows="5" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">
+                        <i class="fas fa-paper-plane"></i> <span data-text="contact_send">ارسال پیام</span>
+                    </button>
+                    <div id="formMessage" class="form-message"></div>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer" data-visible="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-col">
+                    <a href="index.html" class="logo logo-footer"><i class="fas fa-code"></i><span data-text="brand">AmirSedighian</span></a>
+                    <p data-text="footer_about">توسعه‌دهنده فول‌استک و مهندس زیرساخت.</p>
+                </div>
+                <div class="footer-col">
+                    <h4>دسترسی سریع</h4>
+                    <ul><li><a href="index.html">خانه</a></li><li><a href="shop.html">فروشگاه</a></li><li><a href="projects.html">نمونه‌کارها</a></li><li><a href="about.html">درباره من</a></li><li><a href="contact.html">تماس با من</a></li></ul>
+                </div>
+                <div class="footer-col"><h4>خدمات</h4><ul><li>توسعه وب</li><li>ربات تلگرام</li><li>هاست و دامنه</li><li>سرور مجازی</li><li>کانفیگ VPN</li></ul></div>
+                <div class="footer-col"><h4>شبکه‌های اجتماعی</h4><div class="social-links" data-role="socials"></div></div>
+            </div>
+            <div class="footer-bottom"><p>© <span id="currentYear"></span> تمامی حقوق محفوظ است – <span data-text="copyrightName">امیر صدیقیان</span></p></div>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('[data-text]').forEach(el => {
+                const k = el.getAttribute('data-text');
+                if (SITE.texts[k] !== undefined) el.textContent = SITE.texts[k];
+            });
+            document.querySelectorAll('[data-visible]').forEach(el => {
+                if (!isVisible(el.getAttribute('data-visible'))) el.style.display = 'none';
+            });
+            // Contact cards
+            document.getElementById('contactInfo').innerHTML = SITE.contactCards.map(c => `
+                <div class="contact-card">
+                    <div class="contact-icon"><i class="${c.icon}"></i></div>
+                    <div class="contact-detail">
+                        <h4>${c.title}</h4>
+                        ${c.url ? `<a href="${c.url}" ${c.url.startsWith('http')?'target="_blank"':''}>${c.value}</a>` : `<span>${c.value}</span>`}
+                        <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.3rem;">${c.hint||''}</p>
+                    </div>
+                </div>`).join('');
+        });
+    </script>
+</body>
+</html>

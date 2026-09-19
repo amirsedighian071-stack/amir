@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>درباره من – امیر صدیقیان</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar" id="navbar">
+        <div class="container nav-container">
+            <a href="index.html" class="logo"><i class="fas fa-code"></i><span data-text="brand">AmirSedighian</span></a>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link" data-section="home">خانه</a></li>
+                <li><a href="shop.html" class="nav-link" data-section="shop">فروشگاه</a></li>
+                <li><a href="projects.html" class="nav-link" data-section="projects">نمونه‌کارها</a></li>
+                <li><a href="about.html" class="nav-link" data-section="about">درباره من</a></li>
+                <li><a href="contact.html" class="nav-link" data-section="contact">تماس با من</a></li>
+            </ul>
+            <div class="nav-actions">
+                <button id="themeToggle" class="theme-toggle"><i class="fas fa-moon"></i></button>
+                <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <header class="page-header" data-visible="about">
+        <div class="container">
+            <nav class="breadcrumb"><a href="index.html">خانه</a><i class="fas fa-chevron-left"></i><span>درباره من</span></nav>
+            <h1 class="page-title" data-text="about_title">درباره من</h1>
+            <p class="page-subtitle" data-text="about_subtitle">آشنایی بیشتر با امیر صدیقیان.</p>
+        </div>
+    </header>
+
+    <section class="page-section" data-visible="about">
+        <div class="container">
+            <div class="about-grid">
+                <div class="about-image">
+                    <div class="about-photo-wrapper">
+                        <div class="about-photo" id="aboutPhoto"><i class="fas fa-user-tie"></i></div>
+                        <div class="experience-badge">
+                            <span class="exp-number" data-text="about_years">۵+</span>
+                            <span class="exp-text">سال تجربه</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="about-content">
+                    <h3 class="about-name" data-text="about_name">امیر صدیقیان</h3>
+                    <p class="about-desc" data-text="about_intro">با بیش از ۵ سال تجربه...</p>
+                    <div class="about-blocks">
+                        <div class="about-block">
+                            <div class="about-block-icon"><i class="fas fa-code"></i></div>
+                            <div class="about-block-content">
+                                <h4 data-text="about_block1_title">توسعه نرم‌افزار و وب</h4>
+                                <p data-text="about_block1_desc">برنامه‌نویس فول‌استک وب...</p>
+                            </div>
+                        </div>
+                        <div class="about-block">
+                            <div class="about-block-icon"><i class="fas fa-network-wired"></i></div>
+                            <div class="about-block-content">
+                                <h4 data-text="about_block2_title">مهندسی زیرساخت و شبکه</h4>
+                                <p data-text="about_block2_desc">مهندس زیرساخت کلادفلر...</p>
+                            </div>
+                        </div>
+                        <div class="about-block">
+                            <div class="about-block-icon"><i class="fas fa-laptop-code"></i></div>
+                            <div class="about-block-content">
+                                <h4 data-text="about_block3_title">زبان‌های برنامه‌نویسی</h4>
+                                <p data-text="about_block3_desc">مسلط به پایتون...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="skills-container" data-visible="skills">
+                        <h4 data-text="skills_title">مهارت‌ها</h4>
+                        <div class="skills-grid" id="skillsGrid"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="page-section" style="background:var(--bg-secondary);" data-visible="whyme">
+        <div class="container">
+            <div class="section-header">
+                <h2 data-text="whyme_title">چرا همکاری با من؟</h2>
+                <p data-text="whyme_subtitle">چیزی که کار من رو متمایز می‌کنه</p>
+            </div>
+            <div class="features-grid" id="whymeGrid"></div>
+        </div>
+    </section>
+
+    <section class="page-section">
+        <div class="container">
+            <div class="cta-box">
+                <div class="cta-content">
+                    <h2 data-text="cta_home_title">آماده همکاری هستید؟</h2>
+                    <p data-text="cta_home_desc">اگر به دنبال همکار متخصص هستید، با من در ارتباط باشید.</p>
+                </div>
+                <a href="contact.html" class="btn btn-primary"><i class="fas fa-paper-plane"></i> تماس با من</a>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer" data-visible="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-col">
+                    <a href="index.html" class="logo logo-footer"><i class="fas fa-code"></i><span data-text="brand">AmirSedighian</span></a>
+                    <p data-text="footer_about">توسعه‌دهنده فول‌استک و مهندس زیرساخت.</p>
+                </div>
+                <div class="footer-col">
+                    <h4>دسترسی سریع</h4>
+                    <ul><li><a href="index.html">خانه</a></li><li><a href="shop.html">فروشگاه</a></li><li><a href="projects.html">نمونه‌کارها</a></li><li><a href="about.html">درباره من</a></li><li><a href="contact.html">تماس با من</a></li></ul>
+                </div>
+                <div class="footer-col"><h4>تخصص‌ها</h4><ul><li>توسعه وب</li><li>ربات تلگرام</li><li>زیرساخت کلاد</li><li>شبکه‌های امن</li></ul></div>
+                <div class="footer-col"><h4>شبکه‌های اجتماعی</h4><div class="social-links" data-role="socials"></div></div>
+            </div>
+            <div class="footer-bottom"><p>© <span id="currentYear"></span> تمامی حقوق محفوظ است – <span data-text="copyrightName">امیر صدیقیان</span></p></div>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('[data-text]').forEach(el => {
+                const k = el.getAttribute('data-text');
+                if (SITE.texts[k] !== undefined) el.textContent = SITE.texts[k];
+            });
+            document.querySelectorAll('[data-visible]').forEach(el => {
+                if (!isVisible(el.getAttribute('data-visible'))) el.style.display = 'none';
+            });
+            // About photo
+            if (SITE.aboutPhoto) {
+                const p = document.getElementById('aboutPhoto');
+                p.innerHTML = `<img src="${SITE.aboutPhoto}" alt="about" style="width:100%;height:100%;object-fit:cover;border-radius:1.5rem;">`;
+            }
+            // Skills
+            document.getElementById('skillsGrid').innerHTML = SITE.skills.map(s =>
+                `<div class="skill-tag"><i class="${s.icon}"></i> ${s.name}</div>`
+            ).join('');
+            // Why me
+            document.getElementById('whymeGrid').innerHTML = SITE.whyme.map(w => `
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="${w.icon}"></i></div>
+                    <h3>${w.title}</h3>
+                    <p>${w.desc}</p>
+                </div>`).join('');
+        });
+    </script>
+</body>
+</html>

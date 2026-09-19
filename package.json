@@ -1,0 +1,11 @@
+{
+  "name": "amir-sedighian-site",
+  "version": "1.0.0",
+  "description": "Personal website with shop and Telegram bot",
+  "scripts": {
+    "start": "npx netlify dev"
+  },
+  "dependencies": {
+    "node-fetch": "^2.7.0"
+  }
+}
