@@ -4,23 +4,16 @@ const fs = require('fs');
 const path = require('path');
 const fetch = require('node-fetch');
 const {
-  createBlobStorageError,
-  getBlobStore,
-  getErrorMessage,
-  isProductionRuntime
-} = require('./lib/blob-store');
-const {
   getTelegramConfig,
   normaliseTelegramConfig,
   readStoredTelegramConfig,
   saveTelegramConfig
 } = require('./lib/telegram-config');
+const { BLOB_ENV_HINT, checkBlobStorage, openBlobStore } = require('./lib/blob-store');
 
 const SITE_STORE_NAME = 'site';
 const SITE_KEY = 'site-data.json';
 const SITE_TMP_FILE = path.join('/tmp', SITE_KEY);
-const PRIVATE_STORE_NAME = 'private-settings';
-const STORAGE_GUIDANCE = 'متغیرهای NETLIFY_BLOBS_SITE_ID و NETLIFY_BLOBS_TOKEN را در تنظیمات محیطی Netlify تنظیم کنید و سپس سایت را دوباره Deploy کنید.';
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -34,28 +27,16 @@ function response(statusCode, body) {
   return { statusCode, headers, body: JSON.stringify(body) };
 }
 
-function checkBlobStorage() {
-  const { store, error } = getBlobStore(PRIVATE_STORE_NAME);
-  return {
-    storageReady: Boolean(store),
-    storageError: store ? null : getErrorMessage(error)
-  };
-}
-
 async function getSiteData() {
-  const { store } = getBlobStore(SITE_STORE_NAME);
+  const { store } = await openBlobStore(SITE_STORE_NAME);
   if (store) {
     try {
       const raw = await store.get(SITE_KEY);
       if (raw) return JSON.parse(raw);
     } catch (error) {
-      if (isProductionRuntime()) {
-        console.error('[telegram-settings] خواندن اطلاعات سایت از Netlify Blobs ناموفق بود:', error);
-      }
+      // Local development uses the same fallback as site-data.js.
     }
   }
-
-  if (isProductionRuntime()) return null;
 
   try {
     return JSON.parse(fs.readFileSync(SITE_TMP_FILE, 'utf8'));
@@ -116,24 +97,20 @@ function publicStatus(config) {
   };
 }
 
-function storageFailureResponse(error) {
-  const reason = getErrorMessage(error);
-  const message = reason.includes('NETLIFY_BLOBS_SITE_ID')
-    ? reason
-    : `${reason} ${STORAGE_GUIDANCE}`;
-  console.error('[telegram-settings] خطای فضای ذخیره‌سازی دائمی:', error);
-  return response(500, { ok: false, error: message });
-}
-
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
 
   if (event.httpMethod === 'GET') {
     const config = await getTelegramConfig();
+    // Report persistent-storage health (round-trip probe on the private
+    // store) so the panel can warn the admin before a save attempt fails
+    // with «تنظیمات در فضای دائمی Netlify Blobs ذخیره نشد».
+    const storage = await checkBlobStorage();
     return response(200, {
       ok: true,
       ...publicStatus(config),
-      ...checkBlobStorage()
+      storageReady: storage.ready,
+      storageError: storage.error || null
     });
   }
 
@@ -177,18 +154,33 @@ exports.handler = async (event) => {
       parse_mode: 'HTML'
     });
 
-    await saveTelegramConfig(config);
+    try {
+      await saveTelegramConfig(config);
+    } catch (saveError) {
+      // Production persistence failed (e.g. MissingBlobsEnvironmentError).
+      // The thrown message already carries the real reason plus the
+      // NETLIFY_BLOBS_SITE_ID / NETLIFY_BLOBS_TOKEN guidance.
+      return response(500, {
+        ok: false,
+        storageReady: false,
+        storageError: saveError && saveError.message ? saveError.message : String(saveError),
+        error: saveError && saveError.message
+          ? saveError.message
+          : 'تنظیمات در فضای دائمی Netlify Blobs ذخیره نشد.'
+      });
+    }
 
     // Read the configuration back through the same loader the order/checkout
-    // functions use. If it does not round-trip, report a durable-storage error
-    // instead of letting every customer order fail later with an empty config.
+    // functions use. If it does not round-trip (e.g. Blobs unavailable and
+    // only ephemeral /tmp was written), tell the admin now instead of letting
+    // every customer order fail later with "bot is not configured".
     const stored = await readStoredTelegramConfig();
     if (!stored || stored.botToken !== config.botToken || stored.chatId !== config.chatId) {
-      const status = checkBlobStorage();
-      const reason = status.storageError || 'خواندن دوباره تنظیمات ذخیره‌شده ناموفق بود.';
-      return storageFailureResponse(
-        createBlobStorageError('تنظیمات ذخیره نشد', new Error(reason))
-      );
+      return response(500, {
+        ok: false,
+        storageReady: false,
+        error: `تنظیمات در فضای دائمی ذخیره نشد: بازخوانی پس از ذخیره با مقدار ذخیره‌شده مطابقت ندارد. ${BLOB_ENV_HINT}`
+      });
     }
 
     return response(200, {
@@ -200,14 +192,9 @@ exports.handler = async (event) => {
       webhookUrl: url
     });
   } catch (error) {
-    if (error && error.code === 'BLOB_STORAGE_ERROR') {
-      return storageFailureResponse(error);
-    }
     return response(400, {
       ok: false,
       error: error && error.message ? error.message : 'ذخیره تنظیمات تلگرام ناموفق بود.'
     });
   }
 };
-
-exports.checkBlobStorage = checkBlobStorage;

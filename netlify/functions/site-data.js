@@ -1,11 +1,11 @@
-// Netlify Function: shared site data store (read by everyone, written by admin).
-// Uses Netlify Blobs in production and /tmp only during local development.
+// Netlify Function: shared site data store (read by everyone, written by admin)
+// Uses Netlify Blobs when available, falls back to /tmp for local dev only.
 const fs = require('fs');
 const path = require('path');
 const {
-  createBlobStorageError,
-  getBlobStore,
-  isProductionRuntime
+  isProductionRuntime,
+  openBlobStore,
+  productionPersistError
 } = require('./lib/blob-store');
 
 const TMP_FILE = path.join('/tmp', 'site-data.json');
@@ -13,56 +13,33 @@ const STORE_NAME = 'site';
 const KEY = 'site-data.json';
 
 async function readData() {
-  const { store } = getBlobStore(STORE_NAME);
+  const { store } = await openBlobStore(STORE_NAME);
   if (store) {
     try {
       const raw = await store.get(KEY);
       if (raw) return JSON.parse(raw);
-    } catch (error) {
-      if (isProductionRuntime()) {
-        console.error('[site-data] خواندن اطلاعات سایت از Netlify Blobs ناموفق بود:', error);
-      }
-    }
+    } catch (e) { /* fall through */ }
   }
-
-  if (isProductionRuntime()) return null;
-
-  try {
-    return JSON.parse(fs.readFileSync(TMP_FILE, 'utf8'));
-  } catch (error) {
-    return null;
-  }
+  try { return JSON.parse(fs.readFileSync(TMP_FILE, 'utf8')); } catch (e) { return null; }
 }
 
 async function writeData(data) {
-  const { store, error: storeError } = getBlobStore(STORE_NAME);
-  let blobError = storeError;
-
+  const { store, error } = await openBlobStore(STORE_NAME);
+  let blobError = error;
   if (store) {
     try {
       await store.set(KEY, JSON.stringify(data));
       return true;
-    } catch (error) {
-      blobError = error;
-    }
+    } catch (e) { blobError = e; }
   }
 
+  // In production a silent /tmp fallback would lose admin edits between
+  // invocations, so the failure is thrown (and logged) with the real reason.
   if (isProductionRuntime()) {
-    const storageError = createBlobStorageError(
-      'اطلاعات سایت در فضای دائمی Netlify Blobs ذخیره نشد',
-      blobError
-    );
-    console.error('[site-data] خطا در ذخیره اطلاعات سایت:', storageError);
-    throw storageError;
+    throw productionPersistError('داده‌های سایت در فضای دائمی Netlify Blobs ذخیره نشد', blobError);
   }
 
-  try {
-    fs.writeFileSync(TMP_FILE, JSON.stringify(data));
-    return true;
-  } catch (error) {
-    console.error('[site-data] خطا در ذخیره اطلاعات سایت در محیط محلی:', error);
-    return false;
-  }
+  try { fs.writeFileSync(TMP_FILE, JSON.stringify(data)); return true; } catch (e) { return false; }
 }
 
 exports.handler = async (event) => {
@@ -86,38 +63,29 @@ exports.handler = async (event) => {
   }
 
   if (event.httpMethod === 'POST' || event.httpMethod === 'PUT') {
-    let body;
+    let incoming;
     try {
-      body = JSON.parse(event.body || '{}');
-    } catch (error) {
-      return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: String(error && error.message || error) }) };
+      const body = JSON.parse(event.body || '{}');
+      incoming = body.data || body;
+    } catch (e) {
+      return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: String(e && e.message || e) }) };
     }
-
+    if (!incoming || typeof incoming !== 'object') {
+      return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'invalid payload' }) };
+    }
+    incoming._updatedAt = Date.now();
     try {
-      const incoming = body.data || body;
-      if (!incoming || typeof incoming !== 'object') {
-        return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'invalid payload' }) };
-      }
-      incoming._updatedAt = Date.now();
       const ok = await writeData(incoming);
       return {
         statusCode: ok ? 200 : 500,
         headers,
         body: JSON.stringify({ ok, updatedAt: incoming._updatedAt })
       };
-    } catch (error) {
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ ok: false, error: String(error && error.message || error) })
-      };
+    } catch (e) {
+      // Storage failure in production: report 500 with the real reason.
+      return { statusCode: 500, headers, body: JSON.stringify({ ok: false, error: String(e && e.message || e) }) };
     }
   }
 
   return { statusCode: 405, headers, body: JSON.stringify({ ok: false, error: 'Method not allowed' }) };
 };
-
-// Exporting these keeps the storage behavior easy to exercise without changing
-// the Netlify Functions handler contract.
-exports.readData = readData;
-exports.writeData = writeData;
