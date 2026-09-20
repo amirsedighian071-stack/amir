@@ -52,26 +52,49 @@ function notifySiteUpdated() {
 }
 
 // ---- Sync status pill + toast ----
+// The pill is driven by real 'site:sync' events emitted by app.js after each
+// server push, so it shows what the server actually did instead of guessing.
 let _syncTimer = null;
-function markSync(state) {
+function markSync(state, detail) {
     const el = byId('syncStatus');
     if (!el) return;
     clearTimeout(_syncTimer);
     if (state === 'saving') {
         el.className = 'sync-pill';
         el.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> در حال ذخیره روی سرور…';
-        // The push is debounced in app.js; report the outcome shortly after.
-        _syncTimer = setTimeout(() => markSync(window.__syncOk === false ? 'local' : 'ok'), 1400);
+        // Fallback: if the push has not reported yet, reflect the real state.
+        _syncTimer = setTimeout(() => {
+            const st = (typeof siteSyncState === 'function') ? siteSyncState() : null;
+            if (st && st.ok === null) markSync('saving');
+            else markSync(st && st.ok ? 'ok' : 'local', st && st.lastError);
+        }, 8000);
     } else if (state === 'ok') {
         el.className = 'sync-pill ok';
         el.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> ذخیره شد – برای همه بازدیدکنندگان اعمال شد';
     } else if (state === 'local') {
         el.className = 'sync-pill warn';
-        el.innerHTML = '<i class="fas fa-exclamation-triangle"></i> فقط روی این مرورگر ذخیره شد (سرور در دسترس نیست)';
+        el.innerHTML = '<i class="fas fa-exclamation-triangle"></i> فقط روی این مرورگر ذخیره شد – در حال تلاش برای انتشار' +
+            '<button id="syncRetryBtn" type="button" class="sync-retry-btn" title="همین حالا دوباره ارسال کن">حالا</button>';
+        const btn = byId('syncRetryBtn');
+        if (btn) btn.addEventListener('click', () => {
+            markSync('saving');
+            if (typeof pushDataToServer === 'function') pushDataToServer();
+        });
+        if (detail) {
+            const d = byId('syncDetail');
+            if (d) d.textContent = detail;
+        }
     } else if (state === 'err') {
         el.className = 'sync-pill err';
         el.innerHTML = '<i class="fas fa-times-circle"></i> خطا در همگام‌سازی';
     }
+}
+if (typeof window !== 'undefined') {
+    window.addEventListener('site:sync', e => {
+        const d = e.detail || {};
+        if (d.type === 'push:ok') markSync('ok');
+        else if (d.type === 'push:error') markSync('local', d.error);
+    });
 }
 function showAdminToast(text) {
     let t = byId('adminToast');
@@ -941,6 +964,27 @@ function updateTgStatus(status = telegramStatus) {
     box.innerHTML = html;
 }
 
+// Persistent-storage health banner. On the deployed site, /tmp disappears
+// between serverless invocations, so a broken Netlify Blobs connection means
+// admin edits would be lost right away (visitors would never see them). The
+// server-side round-trip probe (telegram-settings GET) reports that here so
+// the admin can fix the two env vars instead of wondering why changes are
+// "only local".
+function isLocalHost() {
+    const host = (location.hostname || '').toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host.indexOf('.') === -1;
+}
+function updateStorageBanner(broken, error) {
+    const el = byId('storageBanner');
+    if (!el) return;
+    const show = Boolean(broken) && !isLocalHost();
+    el.classList.toggle('visible', show);
+    const errEl = byId('storageBannerError');
+    if (errEl) errEl.textContent = show && error ? ('دلیل خطا: ' + error) : '';
+    const btn = byId('storageBannerRetry');
+    if (btn) btn.onclick = () => refreshTelegramStatus();
+}
+
 async function refreshTelegramStatus() {
     try {
         const response = await fetch('/api/telegram-settings', { cache: 'no-store' });
@@ -948,6 +992,7 @@ async function refreshTelegramStatus() {
         const data = await response.json();
         if (data && data.ok) {
             telegramStatus = data;
+            updateStorageBanner(data.storageReady === false, data.storageError);
             if (data.botUsername) {
                 byId('tgBotUsername').value = data.botUsername;
                 SITE.telegram.botUsername = data.botUsername;
@@ -968,6 +1013,10 @@ function loadTelegramSettings() {
     byId('tgBotUsername').value = SITE.telegram.botUsername || '';
     byId('tgCard').value = SITE.telegram.cardNumber || '';
     byId('tgCardHolder').value = SITE.telegram.cardHolder || '';
+    if (byId('tgSiteUrl')) {
+        byId('tgSiteUrl').value = SITE.telegram.siteUrl || '';
+        byId('tgSiteUrl').placeholder = location.origin;
+    }
     refreshTelegramStatus();
 }
 
@@ -978,6 +1027,7 @@ on('saveTelegram', 'click', async () => {
     // manually entered destination can never redirect customers elsewhere.
     const cardNumber = byId('tgCard').value.trim();
     const cardHolder = byId('tgCardHolder').value.trim();
+    const siteUrl = byId('tgSiteUrl') ? byId('tgSiteUrl').value.trim() : '';
 
     if (!token || !chatId) {
         telegramMessage('error', 'لطفاً توکن ربات و آیدی چت ادمین را وارد کنید.');
@@ -996,7 +1046,7 @@ on('saveTelegram', 'click', async () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 admin: { username: SITE.auth.username, password: SITE.auth.password },
-                config: { botToken: token, chatId, cardNumber, cardHolder }
+                config: { botToken: token, chatId, cardNumber, cardHolder, siteUrl }
             })
         });
         const data = await response.json().catch(() => ({}));
@@ -1006,6 +1056,7 @@ on('saveTelegram', 'click', async () => {
         SITE.telegram.botUsername = data.botUsername || '';
         SITE.telegram.cardNumber = cardNumber;
         SITE.telegram.cardHolder = cardHolder;
+        SITE.telegram.siteUrl = siteUrl;
         delete SITE.telegram.botToken;
         delete SITE.telegram.chatId;
         saveData();

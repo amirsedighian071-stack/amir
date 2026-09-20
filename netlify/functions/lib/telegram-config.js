@@ -22,7 +22,8 @@ function normaliseTelegramConfig(value = {}) {
     chatId: clean(value.chatId),
     botUsername: clean(value.botUsername).replace(/^@+/, ''),
     cardNumber: clean(value.cardNumber),
-    cardHolder: clean(value.cardHolder)
+    cardHolder: clean(value.cardHolder),
+    siteUrl: clean(value.siteUrl)
   };
 }
 
@@ -93,7 +94,8 @@ async function getTelegramConfig() {
     chatId: (saved && saved.chatId) || fallback.chatId,
     botUsername: (saved && saved.botUsername) || fallback.botUsername,
     cardNumber: (saved && saved.cardNumber) || fallback.cardNumber,
-    cardHolder: (saved && saved.cardHolder) || fallback.cardHolder
+    cardHolder: (saved && saved.cardHolder) || fallback.cardHolder,
+    siteUrl: (saved && saved.siteUrl) || fallback.siteUrl
   });
 }
 

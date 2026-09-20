@@ -6,7 +6,7 @@ const DEFAULT_DATA = {
     auth: { username: 'admin', password: 'admin123' },
 
     // Telegram config for sending orders to admin
-    telegram: { botToken: '', chatId: '', botUsername: '', cardNumber: '', cardHolder: '' },
+    telegram: { botToken: '', chatId: '', botUsername: '', cardNumber: '', cardHolder: '', siteUrl: '' },
 
     shopEnabled: true,
     products: [
@@ -173,37 +173,68 @@ const SITE = loadData();
 // visitors of the site see the same content, not just the admin's browser.
 const SYNC_ENDPOINT = '/.netlify/functions/site-data';
 const SYNC_POLL_MS = 15000;
+// Back-off used after a failed push, so one transient failure (a deploy in
+// progress, a network blip) can never leave the published copy out of date
+// for the whole browser session — the push keeps retrying until it succeeds.
+const PUSH_RETRY_DELAYS = [1500, 5000, 15000, 30000];
 let _pushTimer = null;
 let _lastRemoteStamp = 0;
-let _syncAvailable = true;
+const _syncState = { ok: null, lastPushAt: null, lastError: null, failures: 0 };
+
+function emitSync(type, detail) {
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+        try { window.dispatchEvent(new CustomEvent('site:sync', { detail: Object.assign({ type }, detail || {}) })); } catch (e) { /* ignore */ }
+    }
+}
+
+function schedulePush(delayMs) {
+    clearTimeout(_pushTimer);
+    _pushTimer = setTimeout(runPush, Math.max(0, delayMs));
+}
+
+function runPush() {
+    _pushTimer = null;
+    // Telegram credentials are kept in a private server-side store. Older
+    // browser-only versions may still have them locally, so remove them before
+    // publishing a shared copy of the site data.
+    const payload = JSON.parse(JSON.stringify(SITE));
+    if (payload.telegram) {
+        delete payload.telegram.botToken;
+        delete payload.telegram.chatId;
+    }
+    return fetch(SYNC_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: payload })
+    }).then(async (r) => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json();
+        if (j && j.updatedAt) _lastRemoteStamp = j.updatedAt;
+        _syncState.ok = true;
+        _syncState.lastPushAt = Date.now();
+        _syncState.lastError = null;
+        _syncState.failures = 0;
+        window.__syncOk = true;
+        emitSync('push:ok', { updatedAt: j && j.updatedAt });
+    }).catch((e) => {
+        _syncState.ok = false;
+        _syncState.lastPushAt = Date.now();
+        _syncState.lastError = String(e && e.message || e);
+        _syncState.failures += 1;
+        window.__syncOk = false;
+        emitSync('push:error', { error: _syncState.lastError, failures: _syncState.failures });
+        const idx = Math.min(_syncState.failures - 1, PUSH_RETRY_DELAYS.length - 1);
+        schedulePush(PUSH_RETRY_DELAYS[idx]);
+    });
+}
 
 function pushDataToServer() {
-    if (!_syncAvailable) { window.__syncOk = false; return; }
-    clearTimeout(_pushTimer);
-    _pushTimer = setTimeout(async () => {
-        try {
-            // Telegram credentials are kept in a private server-side store. Older
-            // browser-only versions may still have them locally, so remove them before
-            // publishing a shared copy of the site data.
-            const payload = JSON.parse(JSON.stringify(SITE));
-            if (payload.telegram) {
-                delete payload.telegram.botToken;
-                delete payload.telegram.chatId;
-            }
-            const r = await fetch(SYNC_ENDPOINT, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ data: payload })
-            });
-            if (!r.ok) { _syncAvailable = false; window.__syncOk = false; return; }
-            const j = await r.json();
-            if (j && j.updatedAt) _lastRemoteStamp = j.updatedAt;
-            window.__syncOk = true;
-        } catch (e) {
-            _syncAvailable = false;
-            window.__syncOk = false;
-        }
-    }, 400);
+    // User-initiated publish: try right away (cancels any pending retry).
+    schedulePush(400);
+}
+
+function siteSyncState() {
+    return Object.assign({}, _syncState);
 }
 
 function mergeRemote(remote) {
@@ -229,15 +260,15 @@ function mergeRemote(remote) {
 }
 
 async function fetchRemoteData() {
-    if (!_syncAvailable) return false;
     try {
         const r = await fetch(SYNC_ENDPOINT + '?t=' + Date.now(), { cache: 'no-store' });
-        if (!r.ok) { _syncAvailable = false; return false; }
+        if (!r.ok) throw new Error('HTTP ' + r.status);
         const j = await r.json();
         if (!j || !j.data) return false;
         return mergeRemote(j.data);
     } catch (e) {
-        _syncAvailable = false;
+        // Transient read failure: keep polling on the next tick instead of
+        // switching sync off for the whole session.
         return false;
     }
 }
@@ -246,7 +277,7 @@ async function initSync(onUpdate) {
     const changed = await fetchRemoteData();
     if (changed && typeof onUpdate === 'function') onUpdate();
     // If no remote copy exists yet, seed it with what we have.
-    if (_syncAvailable && !_lastRemoteStamp) pushDataToServer();
+    if (!_lastRemoteStamp) schedulePush(400);
     setInterval(async () => {
         const c = await fetchRemoteData();
         if (c && typeof onUpdate === 'function') onUpdate();
@@ -889,6 +920,7 @@ window.SITE=SITE; window.saveData=saveData; window.CAT_NAME_MAP=CAT_NAME_MAP;
 window.refreshShopEverywhere=refreshShopEverywhere;
 window.renderSitePage=renderSitePage; window.initSync=initSync;
 window.fetchRemoteData=fetchRemoteData; window.pushDataToServer=pushDataToServer;
+window.siteSyncState=siteSyncState; window.emitSync=emitSync;
 
 document.addEventListener('DOMContentLoaded', () => {
     // Each step is isolated so a single failure can never blank the whole page.
