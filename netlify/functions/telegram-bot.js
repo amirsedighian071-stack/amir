@@ -18,6 +18,17 @@ function fmtPrice(n) {
 function base64Decode(value) {
   return Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
 }
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+function normaliseTelegramUsername(value) {
+  const username = String(value || '').trim().replace(/^@+/, '');
+  return /^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(username) ? username : '';
+}
 
 async function telegramApi(config, method, body) {
   const response = await fetch(`https://api.telegram.org/bot${config.botToken}/${method}`, {
@@ -38,14 +49,15 @@ function sendMessage(config, chatId, text, extra = {}) {
 
 function invoiceText(order, config) {
   const items = order.items
-    .map((item) => `▫️ ${item.name} × ${toPersian(item.qty)}: <b>${fmtPrice(item.price * item.qty)} ت</b>`)
+    .map((item) => `▫️ ${escapeHtml(item.name)} × ${toPersian(item.qty)}: <b>${fmtPrice(item.price * item.qty)} ت</b>`)
     .join('\n');
-  const cardNumber = config.cardNumber || 'شماره کارت در تنظیمات وارد نشده';
-  const cardHolder = config.cardHolder || 'نام صاحب کارت در تنظیمات وارد نشده';
+  const cardNumber = escapeHtml(config.cardNumber || 'شماره کارت در تنظیمات وارد نشده');
+  const cardHolder = escapeHtml(config.cardHolder || 'نام صاحب کارت در تنظیمات وارد نشده');
 
-  return `👋 سلام ${order.name} عزیز\n` +
+  return `👋 سلام ${escapeHtml(order.name)} عزیز\n` +
     `سفارش شما با موفقیت ثبت شد! 🎉\n\n` +
-    `📦 <b>شماره فاکتور:</b> <code>${order.id}</code>\n` +
+    `📦 <b>شماره فاکتور:</b> <code>${escapeHtml(order.id)}</code>\n` +
+    `✈️ <b>آیدی ارتباطی:</b> ${escapeHtml(order.telegramId || '—')}\n` +
     `━━━━━━━━━━━━━━\n` +
     `<b>اقلام سفارش:</b>\n${items}\n` +
     `━━━━━━━━━━━━━━\n` +
@@ -73,19 +85,21 @@ async function adminView(orderId) {
   if (!order) return null;
 
   const items = order.items
-    .map((item) => `▫️ ${item.name} × ${toPersian(item.qty)}: <b>${fmtPrice(item.price * item.qty)} ت</b>`)
+    .map((item) => `▫️ ${escapeHtml(item.name)} × ${toPersian(item.qty)}: <b>${fmtPrice(item.price * item.qty)} ت</b>`)
     .join('\n');
   const statusText = {
     awaiting_payment: '⏳ در انتظار پرداخت',
     receipt_uploaded: '📸 فیش ارسال شده',
     approved: '✅ تایید شده',
     rejected: '❌ رد شده'
-  }[order.status] || order.status;
+  }[order.status] || escapeHtml(order.status);
 
-  const text = `📋 <b>سفارش ${order.id}</b>\n` +
+  const contactUsername = normaliseTelegramUsername(order.customerUsername || order.telegramId);
+  const text = `📋 <b>سفارش ${escapeHtml(order.id)}</b>\n` +
     `وضعیت: ${statusText}\n\n` +
-    `👤 ${order.name}\n📱 <code>${order.phone}</code>\n` +
-    (order.email ? `📧 ${order.email}\n` : '') +
+    `👤 ${escapeHtml(order.name)}\n📱 <code>${escapeHtml(order.phone)}</code>\n` +
+    `✈️ ${escapeHtml(order.telegramId || 'آیدی ثبت نشده')}\n` +
+    (order.email ? `📧 ${escapeHtml(order.email)}\n` : '') +
     `━━━━━━━━━━━━━━\n${items}\n` +
     `━━━━━━━━━━━━━━\n💰 <b>${fmtPrice(order.total)} تومان</b>`;
   const keyboard = [];
@@ -95,7 +109,9 @@ async function adminView(orderId) {
       { text: '❌ رد پرداخت', callback_data: `reject:${order.id}` }
     ]);
   }
-  keyboard.push([{ text: '💬 تماس با مشتری', url: `https://t.me/${String(order.phone).replace(/^0/, '')}` }]);
+  if (contactUsername) {
+    keyboard.push([{ text: '💬 تماس با مشتری', url: `https://t.me/${contactUsername}` }]);
+  }
   return { order, text, reply_markup: { inline_keyboard: keyboard } };
 }
 
@@ -200,11 +216,29 @@ exports.handler = async (event) => {
           const data = JSON.parse(base64Decode(parts[1]));
           const order = await findOrder(data.oid);
           if (order) {
+            const connectedUsername = normaliseTelegramUsername(
+              (message.from && message.from.username) || message.chat.username || ''
+            );
             const updatedOrder = await updateOrder(order.id, {
               customerChatId: chatId,
-              customerUsername: message.chat.username || ''
+              customerUsername: connectedUsername,
+              // Once the customer opens the deep link, Telegram itself becomes
+              // the source of truth for the contact username.
+              telegramId: connectedUsername ? `@${connectedUsername}` : order.telegramId,
+              botConnectedAt: new Date().toISOString()
             });
             await sendMessage(config, chatId, invoiceText(updatedOrder, config), mainKeyboard(updatedOrder));
+            if (!order.customerChatId && config.chatId) {
+              const contactButton = connectedUsername
+                ? { reply_markup: { inline_keyboard: [[{ text: '💬 ارتباط با مشتری', url: `https://t.me/${connectedUsername}` }]] } }
+                : {};
+              await sendMessage(
+                config,
+                config.chatId,
+                `🔗 مشتری سفارش <code>${escapeHtml(order.id)}</code> به ربات متصل شد.`,
+                contactButton
+              );
+            }
             return { statusCode: 200, body: 'ok' };
           }
         } catch (error) {
@@ -238,7 +272,7 @@ exports.handler = async (event) => {
           await telegramApi(config, 'sendPhoto', {
             chat_id: config.chatId,
             photo: receipt.file_id,
-            caption: `📸 فیش پرداخت جدید برای ${order.id}\n👤 ${order.name} | 📱 ${order.phone}`,
+            caption: `📸 فیش پرداخت جدید برای ${escapeHtml(order.id)}\n👤 ${escapeHtml(order.name)} | ✈️ ${escapeHtml(order.telegramId || '—')} | 📱 ${escapeHtml(order.phone)}`,
             parse_mode: 'HTML',
             reply_markup: view.reply_markup
           });

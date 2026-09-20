@@ -80,12 +80,13 @@ const DEFAULT_DATA = {
         // Shop/cart texts
         addToCart: 'افزودن به سبد خرید', viewCart: 'مشاهده سبد خرید', cartTitle: 'سبد خرید', cartEmpty: 'سبد خرید شما خالی است',
         goToShop: 'بازدید از فروشگاه', cartTotal: 'مبلغ کل', completeOrder: 'تکمیل خرید', continueShopping: 'ادامه خرید',
-        checkoutTitle: 'تکمیل سفارش', checkoutDesc: 'اطلاعات خود را وارد کنید تا فاکتور به تلگرام ادمین ارسال شود.',
-        yourName: 'نام و نام خانوادگی *', yourPhone: 'شماره تماس (تلگرام) *', yourEmail: 'ایمیل (اختیاری)',
-        orderNote: 'یادداشت (اختیاری)', sendOrder: 'ارسال سفارش',
+        checkoutTitle: 'تکمیل سفارش', checkoutDesc: 'اطلاعات خود را وارد کنید؛ پس از ثبت، فاکتور در ربات متصل به سایت برای شما نمایش داده می‌شود.',
+        yourName: 'نام و نام خانوادگی *', yourPhone: 'شماره تماس *', yourTelegramId: 'آیدی تلگرام برای ارتباط ادمین *', yourEmail: 'ایمیل (اختیاری)',
+        telegramIdHint: 'آیدی را به شکل @username وارد کنید؛ ادمین فقط از همین آیدی با شما در ارتباط خواهد بود.',
+        orderNote: 'یادداشت (اختیاری)', sendOrder: 'ثبت سفارش و دریافت فاکتور در ربات',
         orderSuccess: '✓ سفارش شما با موفقیت ثبت شد! به زودی با شما تماس می\u200Cگیریم.',
         orderError: 'خطا در ارسال سفارش. لطفاً دوباره تلاش کنید یا مستقیماً از تلگرام با ما در ارتباط باشید.',
-        cartAdded: 'به سبد خرید اضافه شد', detailsProduct: 'مشاهده جزئیات'
+        detailsProduct: 'مشاهده جزئیات'
     },
 
     aboutPhoto: '', heroPhoto: '',
@@ -452,7 +453,6 @@ function createProductModal() {
     div.querySelector('#addCartBtn').addEventListener('click', () => {
         const q = parseInt(div.querySelector('.qty-input').value)||1;
         addToCart(currentDetailPid, q);
-        showToast(txt('cartAdded'));
         closeProductModal();
     });
     div.querySelector('#viewCartBtn').addEventListener('click', () => { closeProductModal(); openCart(); });
@@ -472,19 +472,30 @@ function updateCartBadge() {
     const badge = document.getElementById('cartBadge');
     const floatBtn = document.getElementById('cartFloat');
     const count = cartCount();
-    if (badge) {
-        badge.textContent = toPersianNum(count);
-        badge.style.display = count>0 ? 'flex' : 'none';
+    if (badge) badge.textContent = toPersianNum(count);
+    if (floatBtn) {
+        floatBtn.setAttribute('aria-label', `${txt('cartTitle')}، ${toPersianNum(count)} محصول`);
+        if (count > 0) {
+            const wasHidden = floatBtn.hidden;
+            floatBtn.hidden = false;
+            if (wasHidden) {
+                floatBtn.classList.remove('cart-float--visible');
+                requestAnimationFrame(() => floatBtn.classList.add('cart-float--visible'));
+            }
+        } else {
+            floatBtn.hidden = true;
+            floatBtn.classList.remove('cart-float--visible');
+        }
     }
-    if (floatBtn) floatBtn.style.display = count>0 ? 'flex' : 'none';
 }
 function createCartUI() {
-    if (document.getElementById('cartFloat')) return;
+    if (!document.body.classList.contains('public-site') || document.getElementById('cartFloat')) return;
     const btn = document.createElement('button');
+    btn.type = 'button';
     btn.className = 'cart-float'; btn.id = 'cartFloat'; btn.title = txt('cartTitle');
-    btn.innerHTML = `<i class="fas fa-shopping-cart"></i><span class="cart-badge" id="cartBadge">0</span>`;
+    btn.innerHTML = `<i class="fas fa-shopping-cart" aria-hidden="true"></i><span class="cart-float-label">${txt('cartTitle')}</span><span class="cart-badge" id="cartBadge">۰</span>`;
     btn.addEventListener('click', openCart);
-    btn.style.display = 'none';
+    btn.hidden = true;
     document.body.appendChild(btn);
     updateCartBadge();
 }
@@ -563,10 +574,17 @@ function createCheckoutModal() {
             </div>
             <form id="checkoutForm" class="checkout-body">
                 <div class="order-summary" id="orderSummary"></div>
-                <div class="form-group"><label>${txt('yourName')}</label><input type="text" id="chName" required></div>
-                <div class="form-group"><label>${txt('yourPhone')}</label><input type="tel" id="chPhone" required placeholder="مثلاً ۰۹۱۲۳۴۵۶۷۸۹"></div>
-                <div class="form-group"><label>${txt('yourEmail')}</label><input type="email" id="chEmail"></div>
-                <div class="form-group"><label>${txt('orderNote')}</label><textarea id="chNote" rows="3"></textarea></div>
+                <div class="checkout-fields-grid">
+                    <div class="form-group"><label for="chName">${txt('yourName')}</label><input type="text" id="chName" autocomplete="name" maxlength="80" required></div>
+                    <div class="form-group"><label for="chPhone">${txt('yourPhone')}</label><input type="tel" id="chPhone" autocomplete="tel" inputmode="tel" maxlength="20" required placeholder="مثلاً ۰۹۱۲۳۴۵۶۷۸۹"></div>
+                </div>
+                <div class="form-group telegram-id-field">
+                    <label for="chTelegram"><i class="fab fa-telegram" aria-hidden="true"></i> ${txt('yourTelegramId')}</label>
+                    <div class="telegram-input-wrap"><span aria-hidden="true">@</span><input type="text" id="chTelegram" dir="ltr" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="5" maxlength="32" required placeholder="username"></div>
+                    <small>${txt('telegramIdHint')}</small>
+                </div>
+                <div class="form-group"><label for="chEmail">${txt('yourEmail')}</label><input type="email" id="chEmail" autocomplete="email" maxlength="120"></div>
+                <div class="form-group"><label for="chNote">${txt('orderNote')}</label><textarea id="chNote" rows="3" maxlength="600"></textarea></div>
                 <div id="checkoutMsg"></div>
                 <button type="submit" class="btn btn-primary btn-block"><i class="fab fa-telegram"></i> ${txt('sendOrder')}</button>
             </form>
@@ -588,67 +606,92 @@ function renderCheckoutSummary() {
     html += `<div class="order-item"><span>جمع کل</span><span>${formatPrice(total)} تومان</span></div>`;
     document.getElementById('orderSummary').innerHTML = html;
 }
+function normaliseTelegramUsername(value) {
+    return String(value || '')
+        .trim()
+        .replace(/^https?:\/\/(?:www\.)?t\.me\//i, '')
+        .replace(/^@+/, '')
+        .replace(/\/$/, '');
+}
+
 async function handleCheckoutSubmit(e) {
     e.preventDefault();
+    const form = e.currentTarget;
     const name = document.getElementById('chName').value.trim();
     const phone = document.getElementById('chPhone').value.trim();
+    const telegramInput = document.getElementById('chTelegram');
+    const telegramUsername = normaliseTelegramUsername(telegramInput.value);
     const email = document.getElementById('chEmail').value.trim();
     const note = document.getElementById('chNote').value.trim();
     const msgBox = document.getElementById('checkoutMsg');
-    const btn = e.target.querySelector('button[type=submit]');
-    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> در حال ثبت...';
+    const btn = form.querySelector('button[type=submit]');
+
+    // Telegram usernames are 5–32 characters and only contain Latin letters,
+    // numbers and underscores. Keeping this strict gives the admin a working link.
+    if (!/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(telegramUsername)) {
+        telegramInput.setCustomValidity('آیدی تلگرام معتبر نیست. نمونه صحیح: username یا @username');
+        telegramInput.reportValidity();
+        telegramInput.addEventListener('input', () => telegramInput.setCustomValidity(''), { once: true });
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> در حال ثبت و اتصال به ربات...';
+    msgBox.className = '';
+    msgBox.textContent = '';
 
     const invoiceId = 'ORD-' + Date.now().toString(36).toUpperCase();
     const items = Object.entries(CART).map(([pid,qty]) => {
         const p = getProduct(+pid);
-        return { pid: p.id, name: p.name, qty, price: p.price, icon: p.icon };
-    });
+        return p ? { pid: p.id, name: p.name, qty, price: p.price, icon: p.icon } : null;
+    }).filter(Boolean);
     const total = cartTotal();
+    const order = {
+        id: invoiceId,
+        name,
+        phone,
+        telegramId: `@${telegramUsername}`,
+        email,
+        note,
+        items,
+        total,
+        date: new Date().toISOString()
+    };
 
-    const order = { id: invoiceId, name, phone, email, note, items, total, date: new Date().toISOString(),
-      botUsername: SITE.telegram.botUsername || '' };
-    SITE.orders = SITE.orders || [];
-
-    // Try serverless endpoint (Netlify) first; falls back to localStorage-only
-    let serverResp = null;
     try {
-        const r = await fetch('/.netlify/functions/create-order', {
+        const response = await fetch('/.netlify/functions/create-order', {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
             body: JSON.stringify(order)
         });
-        if (r.ok) serverResp = await r.json();
-    } catch(err) { /* no server, fall through */ }
+        const serverResp = await response.json().catch(() => ({}));
+        if (!response.ok || !serverResp.ok) {
+            throw new Error(serverResp.error || 'ثبت سفارش در ربات انجام نشد.');
+        }
+        // The server returns a deep link built only from the username obtained
+        // from the bot token that the admin webhooked in the panel. Never fall
+        // back to a social/profile link or to browser-side bot settings.
+        if (!serverResp.telegramUrl || !/^https:\/\/t\.me\/[A-Za-z0-9_]+\?start=/.test(serverResp.telegramUrl)) {
+            throw new Error('ربات سفارش‌ها هنوز توسط ادمین فعال نشده است.');
+        }
 
-    // Fallback: store locally and attempt direct send (if token configured)
-    if (!serverResp) {
-        SITE.orders.push({...order, sent: false});
-        saveData();
-    } else {
+        SITE.orders = SITE.orders || [];
         SITE.orders.push({...order, sent: true});
         saveData();
+        CART = {};
+        saveCart(CART);
+
+        msgBox.className = 'form-message success';
+        msgBox.textContent = '✓ فاکتور ثبت شد؛ در حال انتقال به ربات متصل به سایت...';
+        setTimeout(() => window.location.assign(serverResp.telegramUrl), 850);
+    } catch (error) {
+        msgBox.className = 'form-message error';
+        msgBox.textContent = error && error.message
+            ? error.message
+            : 'ارتباط با ربات برقرار نشد. لطفاً کمی بعد دوباره تلاش کنید.';
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fab fa-telegram"></i> ${txt('sendOrder')}`;
     }
-
-    btn.disabled = false;
-    msgBox.className = 'form-message success';
-    msgBox.textContent = '✓ سفارش شما ثبت شد! در حال انتقال به ربات تلگرام...';
-
-    CART = {}; saveCart(CART);
-
-    setTimeout(() => {
-        closeCheckout();
-        document.getElementById('checkoutForm').reset();
-        msgBox.className = ''; msgBox.textContent='';
-        // Redirect to Telegram bot
-        if (serverResp && serverResp.telegramUrl) {
-            window.location.href = serverResp.telegramUrl;
-        } else if (SITE.socials) {
-            // fallback to admin telegram
-            const tg = SITE.socials.find(s => s.icon && s.icon.includes('telegram'));
-            if (tg && tg.url) window.location.href = tg.url;
-            else showToast('برای پیگیری سفارش از طریق تلگرام با ما در ارتباط باشید.');
-        }
-    }, 2000);
 }
 
 // ============== Toast ==============
@@ -695,6 +738,62 @@ function initCounters() {
     counters.forEach(c=>obs.observe(c));
 }
 function setYear() { const y=document.getElementById('currentYear'); if(y) y.textContent=toPersianNum(new Date().getFullYear()); }
+
+// ============== Public content protection & motion ==============
+function initContentProtection() {
+    if (!document.body.classList.contains('public-site')) return;
+    const isEditable = target => target && target.closest && target.closest('input, textarea, [contenteditable="true"]');
+    document.addEventListener('copy', event => {
+        if (!isEditable(event.target)) event.preventDefault();
+    });
+    document.addEventListener('dragstart', event => {
+        if (event.target && event.target.closest('img')) event.preventDefault();
+    });
+}
+
+let motionObserver = null;
+function initMotionEffects() {
+    if (!document.body.classList.contains('public-site')) return;
+    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const targets = document.querySelectorAll(
+        '.section-header, .page-title, .page-subtitle, .feature-card, .product-card, .project-card, .about-photo-wrapper, .about-header, .about-block, .skills-container, .contact-card, .contact-form, .cta-box'
+    );
+
+    if (reduceMotion || typeof IntersectionObserver === 'undefined') {
+        targets.forEach(el => el.classList.add('motion-reveal', 'is-visible'));
+        return;
+    }
+
+    if (!motionObserver) {
+        motionObserver = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                if (!entry.isIntersecting) return;
+                entry.target.classList.add('is-visible');
+                motionObserver.unobserve(entry.target);
+            });
+        }, { threshold: 0.12, rootMargin: '0px 0px -35px 0px' });
+    }
+
+    targets.forEach((el, index) => {
+        if (el.classList.contains('motion-reveal')) return;
+        el.classList.add('motion-reveal');
+        el.style.setProperty('--reveal-delay', `${Math.min(index % 4, 3) * 75}ms`);
+        motionObserver.observe(el);
+    });
+
+    if (!document.querySelector('.neon-cursor-glow') && window.matchMedia('(pointer:fine)').matches) {
+        const glow = document.createElement('div');
+        glow.className = 'neon-cursor-glow';
+        glow.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(glow);
+        window.addEventListener('pointermove', event => {
+            glow.style.setProperty('--pointer-x', `${event.clientX}px`);
+            glow.style.setProperty('--pointer-y', `${event.clientY}px`);
+            glow.classList.add('is-active');
+        }, { passive: true });
+        document.documentElement.addEventListener('mouseleave', () => glow.classList.remove('is-active'));
+    }
+}
 
 // ============== Section renderers shared by all pages ==============
 function renderFeaturesGrid() {
@@ -783,6 +882,7 @@ function renderSitePage() {
     renderWhymeGrid();
     renderContactCards();
     refreshShopEverywhere();
+    initMotionEffects();
 }
 
 window.SITE=SITE; window.saveData=saveData; window.CAT_NAME_MAP=CAT_NAME_MAP;
@@ -792,7 +892,7 @@ window.fetchRemoteData=fetchRemoteData; window.pushDataToServer=pushDataToServer
 
 document.addEventListener('DOMContentLoaded', () => {
     // Each step is isolated so a single failure can never blank the whole page.
-    [initTheme, initNavbar, initCounters, initContactForm, setYear, createCartUI, renderSitePage]
+    [initTheme, initNavbar, initCounters, initContactForm, setYear, createCartUI, initContentProtection, renderSitePage]
         .forEach(fn => { try { fn(); } catch (e) { console.error('[site] init failed:', fn.name, e); } });
     // Keep every visitor in sync with the admin panel's latest changes.
     if (!document.getElementById('adminPage')) {
