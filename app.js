@@ -206,7 +206,9 @@ function runPush() {
     // Telegram credentials are kept in a private server-side store. Older
     // browser-only versions may still have them locally, so remove them before
     // publishing a shared copy of the site data.
-    const payload = JSON.parse(JSON.stringify(SITE));
+    // Shallow clone is enough (we only strip nested telegram keys) and avoids
+    // serialising + parsing megabytes of base64 photos on the main thread.
+    const payload = Object.assign({}, SITE, { telegram: Object.assign({}, SITE.telegram) });
     if (payload.telegram) {
         delete payload.telegram.botToken;
         delete payload.telegram.chatId;
@@ -268,8 +270,24 @@ function mergeRemote(remote) {
     return true;
 }
 
-async function fetchRemoteData() {
+let _syncFetchPending = false;
+async function fetchRemoteStamp() {
     try {
+        const r = await fetch(SYNC_ENDPOINT + '?meta=1&t=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) return null;
+        const j = await r.json();
+        return (j && j.updatedAt) || null;
+    } catch (e) { return null; }
+}
+async function fetchRemoteData() {
+    if (_syncFetchPending) return false;
+    _syncFetchPending = true;
+    try {
+        // Cheap stamp check first: the full payload can be megabytes (base64
+        // photos), so only download + parse it when something actually changed.
+        // A null stamp means "unknown" (old server / first load) → fetch fully.
+        const stamp = await fetchRemoteStamp();
+        if (stamp && stamp <= _lastRemoteStamp) return false;
         const r = await fetch(SYNC_ENDPOINT + '?t=' + Date.now(), { cache: 'no-store' });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const j = await r.json();
@@ -279,6 +297,8 @@ async function fetchRemoteData() {
         // Transient read failure: keep polling on the next tick instead of
         // switching sync off for the whole session.
         return false;
+    } finally {
+        _syncFetchPending = false;
     }
 }
 
@@ -287,10 +307,15 @@ async function initSync(onUpdate) {
     if (changed && typeof onUpdate === 'function') onUpdate();
     // If no remote copy exists yet, seed it with what we have.
     if (!_lastRemoteStamp) schedulePush(400);
-    setInterval(async () => {
+    const poll = async () => {
+        // Background tabs don't need live data — skip the network + parse work.
+        if (document.hidden) return;
         const c = await fetchRemoteData();
         if (c && typeof onUpdate === 'function') onUpdate();
-    }, SYNC_POLL_MS);
+    };
+    setInterval(poll, SYNC_POLL_MS);
+    // Refresh as soon as the tab becomes visible again.
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
     // Instant sync between tabs on the same device.
     window.addEventListener('storage', e => {
         if (e.key !== STORAGE_KEY || !e.newValue) return;
@@ -318,6 +343,33 @@ function formatPrice(n) { return toPersianNum(Number(n).toString().replace(/\B(?
 function txt(key) { return SITE.texts[key] || DEFAULT_DATA.texts[key] || key; }
 function isVisible(key) { return SITE.visible[key] !== false; }
 function nextId(arr) { return arr.length ? Math.max(...arr.map(x => x.id||0))+1 : 1; }
+
+// ============== Render change-detection helpers ==============
+// Re-renders must be cheap AND must not rebuild grids (restarting sliders or
+// dropping scroll position) when nothing changed. Small text fields are hashed
+// fully for correctness; big base64 photos are only fingerprinted (length +
+// head/tail hash) so we never serialise megabytes on the main thread.
+function shash(str) {
+    str = String(str == null ? '' : str);
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+}
+function imgSig(img) {
+    if (!img) return '0';
+    const s = String(img);
+    if (s.length < 200) return 's' + shash(s); // icon class / short url: hash fully
+    return s.length + ':' + shash(s.slice(0, 48) + s.slice(-48));
+}
+function arrSig(arr, pick) {
+    if (!arr || !arr.length) return '0';
+    let s = String(arr.length);
+    for (let i = 0; i < arr.length; i++) s += '#' + pick(arr[i], i);
+    return s;
+}
+function cardSig(x) {
+    return [x.id, x.icon || '', shash(x.title), shash(x.desc), imgSig(x.image)].join(',');
+}
 function getProduct(id) { return SITE.products.find(p => p.id === id); }
 function cartTotal() {
     return Object.entries(CART).reduce((sum, [pid, qty]) => {
@@ -362,7 +414,19 @@ function initNavbar() {
         }));
     }
     const nb = document.getElementById('navbar');
-    if (nb) window.addEventListener('scroll', () => nb.classList.toggle('scrolled', window.scrollY>20));
+    if (nb) {
+        // Coalesced + passive: the raw listener forced style recalc on every
+        // single scroll tick, which is a classic scroll-jank source.
+        let nbTicking = false;
+        window.addEventListener('scroll', () => {
+            if (nbTicking) return;
+            nbTicking = true;
+            requestAnimationFrame(() => {
+                nbTicking = false;
+                nb.classList.toggle('scrolled', window.scrollY > 20);
+            });
+        }, { passive: true });
+    }
     if (!isVisible('footer')) { const f=document.querySelector('.footer'); if(f) f.style.display='none'; }
 }
 
@@ -388,6 +452,15 @@ function productCardHtml(p) {
         </div>`;
 }
 
+function shopSignature(category, limit, showFilters, slider, list) {
+    // The old code ran JSON.stringify over the whole product list — including
+    // megabytes of base64 photos — on every render pass. Fingerprints are enough.
+    return category + '|' + limit + '|' + (showFilters ? 1 : 0) + '|' + (slider ? 1 : 0) + '|' +
+        arrSig(list, p => [p.id, p.category || '', p.price, p.unit || '', p.badge || '', p.icon || '',
+            shash(p.name), shash(p.description), shash(p.longDescription),
+            (p.features || []).map(shash).join('~'), imgSig(p.image)].join(','));
+}
+
 function renderShop(container, opts={}) {
     if (!container) return;
     const { category='all', limit=0, showFilters=true } = opts;
@@ -404,7 +477,7 @@ function renderShop(container, opts={}) {
 
     // The public pages re-render from the live sync every few seconds. Only
     // rebuild when something real changed, so sliders/modals never restart.
-    const signature = JSON.stringify({ category, limit, showFilters, slider, list });
+    const signature = shopSignature(category, limit, showFilters, slider, list);
     if (container.dataset.shopSig === signature && container.firstElementChild) return;
     container.dataset.shopSig = signature;
 
@@ -645,19 +718,36 @@ function initShopSlider(container) {
 
     // Keep the active slide centered on any layout change
     const relayout = () => { if (!applyTransform(false)) return; paintDepth(); };
-    window.addEventListener('resize', relayout);
+    let ro = null, io = null, resizeQueued = false;
+    const onResize = () => {
+        // A re-render replaces this slider's DOM; drop stale global listeners
+        // instead of accumulating layout reads on detached nodes forever.
+        if (!root.isConnected) {
+            window.removeEventListener('resize', onResize);
+            document.removeEventListener('shop-slider-refresh', onRefresh);
+            if (ro) ro.disconnect();
+            if (io) io.disconnect();
+            clearTimeout(timer); clearTimeout(settleTimer);
+            return;
+        }
+        if (resizeQueued) return;
+        resizeQueued = true;
+        requestAnimationFrame(() => { resizeQueued = false; relayout(); });
+    };
+    const onRefresh = () => { if (root.isConnected) relayout(); };
+    window.addEventListener('resize', onResize);
     if (typeof ResizeObserver === 'function') {
-        const ro = new ResizeObserver(relayout);
+        ro = new ResizeObserver(relayout);
         ro.observe(viewport);
     }
     if (typeof IntersectionObserver === 'function') {
-        const io = new IntersectionObserver(entries => {
+        io = new IntersectionObserver(entries => {
             visible = entries.some(en => en.isIntersecting);
             if (visible) { relayout(); schedule(); } else { stopProgress(); clearTimeout(timer); }
         }, { threshold: 0.15 });
         io.observe(root);
     }
-    document.addEventListener('shop-slider-refresh', relayout);
+    document.addEventListener('shop-slider-refresh', onRefresh);
 
     requestAnimationFrame(() => { relayout(); paintDepth(); schedule(); });
 }
@@ -1091,7 +1181,10 @@ function showToast(text, type='success') {
 
 // ============== Socials & Contact form & Counters (same as before) ==============
 function renderSocials() {
+    const sig = arrSig(SITE.socials, s => [s.id, s.icon || '', shash(s.name), shash(s.url), s.color || ''].join(','));
     document.querySelectorAll('[data-role="socials"]').forEach(c => {
+        if (c.dataset.renderSig === sig && c.firstChild) return;
+        c.dataset.renderSig = sig;
         c.innerHTML = SITE.socials.map(s => `<a href="${s.url||'#'}" ${s.url&&s.url.startsWith('http')?'target="_blank"':''} title="${s.name}"><i class="${s.icon}"></i></a>`).join('');
     });
 }
@@ -1171,10 +1264,18 @@ function initMotionEffects() {
         glow.className = 'neon-cursor-glow';
         glow.setAttribute('aria-hidden', 'true');
         document.body.appendChild(glow);
+        let glowX = 0, glowY = 0, glowQueued = false;
         window.addEventListener('pointermove', event => {
-            glow.style.setProperty('--pointer-x', `${event.clientX}px`);
-            glow.style.setProperty('--pointer-y', `${event.clientY}px`);
-            glow.classList.add('is-active');
+            // Coalesce to one style write per frame (was: every mousemove).
+            glowX = event.clientX; glowY = event.clientY;
+            if (glowQueued) return;
+            glowQueued = true;
+            requestAnimationFrame(() => {
+                glowQueued = false;
+                glow.style.setProperty('--pointer-x', `${glowX}px`);
+                glow.style.setProperty('--pointer-y', `${glowY}px`);
+                glow.classList.add('is-active');
+            });
         }, { passive: true });
         document.documentElement.addEventListener('mouseleave', () => glow.classList.remove('is-active'));
     }
@@ -1196,12 +1297,14 @@ function typeInto(el, text, speed, done) {
         el.dataset.typed = 'done';
     };
     const tick = () => {
-        i++;
+        // Two chars per tick: halves DOM writes + layouts on long paragraphs
+        // while keeping the same visible speed (delay is doubled too).
+        i = Math.min(text.length, i + 2);
         el.textContent = text.slice(0, i);
         if (i >= text.length) { cleanup(); if (done) done(); return; }
         const ch = text.charAt(i - 1);
-        let delay = speed;
-        if (ch === ' ') delay = speed * 0.5;
+        let delay = speed * 2;
+        if (ch === ' ') delay = speed;
         else if ('.،؛:!?؟'.indexOf(ch) !== -1) delay = speed * 7;
         timer = setTimeout(tick, delay);
     };
@@ -1240,6 +1343,9 @@ function initTypewriter() {
 function renderFeaturesGrid() {
     const fg = document.getElementById('featuresGrid');
     if (!fg) return;
+    const sig = arrSig(SITE.features, cardSig);
+    if (fg.dataset.renderSig === sig && fg.firstChild) return;
+    fg.dataset.renderSig = sig;
     fg.innerHTML = SITE.features.map(f => `
         <div class="feature-card">
             <div class="feature-icon${f.image?' has-photo':''}">${f.image?`<img src="${f.image}" alt="${f.title}" loading="lazy">`:`<i class="${f.icon}"></i>`}</div>
@@ -1250,6 +1356,9 @@ function renderFeaturesGrid() {
 function renderProjectsGrid() {
     const grid = document.getElementById('projectsGrid');
     if (!grid) return;
+    const sig = arrSig(SITE.projects, p => [p.id, p.icon || '', shash(p.tag), shash(p.title), shash(p.desc), shash(p.tech), shash(p.longDescription), imgSig(p.image)].join(','));
+    if (grid.dataset.renderSig === sig && grid.firstChild) return;
+    grid.dataset.renderSig = sig;
     grid.innerHTML = SITE.projects.map(p => `
         <div class="project-card" data-project="${p.id}" tabindex="0" role="button" aria-label="توضیحات بیشتر درباره ${p.title||''}">
             <div class="project-image${p.image?' has-photo':''}">${p.image?`<img src="${p.image}" alt="${p.title}" loading="lazy">`:`<i class="${p.icon}"></i>`}<span class="project-image-shine" aria-hidden="true"></span></div>
@@ -1354,11 +1463,17 @@ document.addEventListener('keydown', e => {
 function renderSkillsGrid() {
     const el = document.getElementById('skillsGrid');
     if (!el) return;
+    const sig = arrSig(SITE.skills, s => [s.id, s.icon || '', shash(s.name)].join(','));
+    if (el.dataset.renderSig === sig && el.firstChild) return;
+    el.dataset.renderSig = sig;
     el.innerHTML = SITE.skills.map(s => `<div class="skill-tag"><i class="${s.icon}"></i> ${s.name}</div>`).join('');
 }
 function renderWhymeGrid() {
     const el = document.getElementById('whymeGrid');
     if (!el) return;
+    const sig = arrSig(SITE.whyme, cardSig);
+    if (el.dataset.renderSig === sig && el.firstChild) return;
+    el.dataset.renderSig = sig;
     el.innerHTML = SITE.whyme.map(w => `
         <div class="feature-card">
             <div class="feature-icon${w.image?' has-photo':''}">${w.image?`<img src="${w.image}" alt="${w.title}" loading="lazy">`:`<i class="${w.icon}"></i>`}</div>
@@ -1369,6 +1484,9 @@ function renderWhymeGrid() {
 function renderContactCards() {
     const el = document.getElementById('contactInfo');
     if (!el) return;
+    const sig = arrSig(SITE.contactCards, c => [c.id, c.icon || '', shash(c.title), shash(c.value), shash(c.url), shash(c.hint)].join(','));
+    if (el.dataset.renderSig === sig && el.firstChild) return;
+    el.dataset.renderSig = sig;
     el.innerHTML = SITE.contactCards.map(c => `
         <div class="contact-card">
             <div class="contact-icon"><i class="${c.icon}"></i></div>
@@ -1382,15 +1500,23 @@ function renderContactCards() {
 function renderPhotos() {
     const h = document.getElementById('heroAvatar');
     if (h) {
-        h.innerHTML = SITE.heroPhoto
-            ? `<img src="${SITE.heroPhoto}" alt="avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
-            : '<i class="fas fa-user"></i>';
+        const sig = imgSig(SITE.heroPhoto);
+        if (h.dataset.photoSig !== sig || !h.firstChild) {
+            h.dataset.photoSig = sig;
+            h.innerHTML = SITE.heroPhoto
+                ? `<img src="${SITE.heroPhoto}" alt="avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+                : '<i class="fas fa-user"></i>';
+        }
     }
     const a = document.getElementById('aboutPhoto');
     if (a) {
-        a.innerHTML = SITE.aboutPhoto
-            ? `<img src="${SITE.aboutPhoto}" alt="about" style="width:100%;height:100%;object-fit:cover;border-radius:1.5rem;">`
-            : '<i class="fas fa-user-tie"></i>';
+        const sig = imgSig(SITE.aboutPhoto);
+        if (a.dataset.photoSig !== sig || !a.firstChild) {
+            a.dataset.photoSig = sig;
+            a.innerHTML = SITE.aboutPhoto
+                ? `<img src="${SITE.aboutPhoto}" alt="about" style="width:100%;height:100%;object-fit:cover;border-radius:1.5rem;">`
+                : '<i class="fas fa-user-tie"></i>';
+        }
     }
 }
 function applyTexts() {
@@ -1400,7 +1526,7 @@ function applyTexts() {
         // Never wipe a half-typed headline while the typewriter is running.
         if (el.classList.contains('is-typing')) return;
         if (el.dataset.typingStarted === '1' && el.dataset.typed !== 'done') return;
-        el.textContent = SITE.texts[k];
+        if (el.textContent !== SITE.texts[k]) el.textContent = SITE.texts[k];
     });
     document.querySelectorAll('[data-visible]').forEach(el => {
         el.style.display = isVisible(el.getAttribute('data-visible')) ? '' : 'none';
