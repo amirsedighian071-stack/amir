@@ -54,11 +54,18 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
 
   if (event.httpMethod === 'GET') {
+    const params = (event.queryStringParameters) || {};
     const data = await readData();
+    const updatedAt = (data && data._updatedAt) || null;
+    // Lightweight stamp check (?meta=1) so visitors poll bytes, not megabytes:
+    // the full payload (with base64 photos) is only downloaded when it changed.
+    if (params.meta === '1') {
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, updatedAt }) };
+    }
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ ok: true, data: data || null, updatedAt: data && data._updatedAt || null })
+      body: JSON.stringify({ ok: true, data: data || null, updatedAt })
     };
   }
 

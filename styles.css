@@ -239,6 +239,10 @@ img { max-width: 100%; display: block; }
     border-radius: 50%;
     filter: blur(80px);
     opacity: 0.3;
+    /* Promote the blurred blobs to their own GPU layers so the transform
+       animation composites instead of repainting the blur every frame. */
+    will-change: transform;
+    transform: translateZ(0);
 }
 .shape-1 {
     width: 400px; height: 400px;
@@ -1553,7 +1557,14 @@ img { max-width: 100%; display: block; }
 .public-site .feature-icon,
 .public-site .contact-icon,
 .public-site .about-block-icon {
-    box-shadow: 0 0 0 rgba(6,182,212,0);
+    /* Static glow at rest: animating box-shadow on every icon, every frame,
+       kept the whole page repainting forever. The pulse now runs only while
+       its card is hovered (see below). */
+    box-shadow: 0 0 14px rgba(6,182,212,.12);
+}
+.public-site .feature-card:hover .feature-icon,
+.public-site .contact-card:hover .contact-icon,
+.public-site .about-block:hover .about-block-icon {
     animation: iconNeonPulse 4s ease-in-out infinite;
 }
 .public-site .product-card:nth-child(2n) .product-image i,
@@ -1585,7 +1596,13 @@ img { max-width: 100%; display: block; }
 .public-site .btn-primary:hover::after { right: 125%; }
 .public-site .cta-box {
     background-size: 240% 240%;
-    animation: neonGradientShift 9s ease infinite, ctaNeonBreath 4s ease-in-out infinite;
+    /* Only the gradient shift runs always-on; the box-shadow "breath" repainted
+       this large box every frame, so it now plays only on hover. */
+    box-shadow: var(--shadow-xl);
+    animation: neonGradientShift 12s ease infinite;
+}
+.public-site .cta-box:hover {
+    animation: neonGradientShift 12s ease infinite, ctaNeonBreath 4s ease-in-out infinite;
 }
 .public-site .skill-tag {
     transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
@@ -2053,6 +2070,7 @@ img { max-width: 100%; display: block; }
     filter: blur(26px);
     opacity: .85;
     pointer-events: none;
+    will-change: transform, opacity;
     animation: sliderGlowDrift 11s ease-in-out infinite alternate;
 }
 @keyframes sliderGlowDrift {
@@ -2381,7 +2399,9 @@ img { max-width: 100%; display: block; }
 .project-card:hover .project-more i { transform: translateX(-5px); }
 
 /* ========================================================================
-   Neon cards: a slow, always-on glow plus a travelling light sheen
+   Neon cards: a static glow at rest, animated sheen only on hover.
+   (Running background-position + box-shadow animations on EVERY card,
+   forever, kept the page repainting at 60fps and froze low-end devices.)
    ======================================================================== */
 .public-site .feature-card::before,
 .public-site .product-card::before,
@@ -2397,9 +2417,16 @@ img { max-width: 100%; display: block; }
     background: linear-gradient(115deg, transparent 34%, rgba(6, 182, 212, .13) 46%, rgba(139, 92, 246, .16) 54%, transparent 66%);
     background-size: 280% 100%;
     background-position: 135% 0;
-    animation: cardSheen 8.5s ease-in-out infinite;
-    animation-delay: var(--neon-delay, 0s);
     pointer-events: none;
+}
+.public-site .feature-card:hover::before,
+.public-site .product-card:hover::before,
+.public-site .project-card:hover::before,
+.public-site .about-block:hover::before,
+.public-site .contact-card:hover::before,
+.public-site .contact-form:hover::before {
+    animation: cardSheen 3.2s ease-in-out infinite;
+    animation-delay: var(--neon-delay, 0s);
 }
 @keyframes cardSheen {
     0% { background-position: 135% 0; }
@@ -2470,4 +2497,24 @@ img { max-width: 100%; display: block; }
 
 @media (max-width: 968px) and (min-width: 761px) {
     .slider-arrow { width: 42px; height: 42px; }
+}
+
+/* ========================================================================
+   Performance: skip rendering off-screen grid cards until scrolled into view.
+   (Slider items are excluded — the slider measures their size for centering.)
+   ======================================================================== */
+.features-grid > *,
+.projects-grid > *,
+.products-grid > *,
+.skills-grid > *,
+.contact-info > * {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 320px;
+}
+
+/* On small / low-power screens, park the big blurred hero blobs instead of
+   animating them forever — they stay visible, just static. */
+@media (max-width: 640px) {
+    .floating-shape { animation: none; }
+    .slider-glow { animation: none; opacity: .7; }
 }
