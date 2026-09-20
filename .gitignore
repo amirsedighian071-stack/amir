@@ -1,0 +1,8 @@
+# Dependencies and local development state
+node_modules/
+.netlify/
+
+# Local secrets
+.env
+.env.*
+!.env.example
