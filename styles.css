@@ -486,7 +486,9 @@ img { max-width: 100%; display: block; }
     border-radius: 1rem;
     border: 1px solid var(--border);
     overflow: hidden;
-    transition: all 0.3s;
+    /* Explicit list: `transition: all` made the browser watch every property
+       of every card, including ones that force layout. */
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
     position: relative;
 }
 .product-card:hover {
@@ -1630,11 +1632,21 @@ img { max-width: 100%; display: block; }
     --pointer-x: 50vw;
     --pointer-y: 50vh;
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
+    /* A small blob that is *moved* with a transform. The old version was a
+       full-viewport gradient whose position was baked into the background,
+       so every pointer frame repainted the entire window. */
+    width: 380px;
+    height: 380px;
+    margin: -190px 0 0 -190px;
     z-index: 9998;
     pointer-events: none;
     opacity: 0;
-    background: radial-gradient(180px circle at var(--pointer-x) var(--pointer-y), rgba(6,182,212,.11), transparent 70%);
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(6,182,212,.13), rgba(6,182,212,0) 72%);
+    transform: translate3d(var(--pointer-x), var(--pointer-y), 0);
+    will-change: transform;
     transition: opacity .3s ease;
 }
 .neon-cursor-glow.is-active { opacity: 1; }
@@ -2064,19 +2076,22 @@ img { max-width: 100%; display: block; }
     position: absolute;
     inset: 8% 6% 18%;
     border-radius: 2rem;
+    /* Two soft radial gradients instead of a filter: blur(26px) on a layer
+       this large was re-rasterised on every frame of the drift animation and
+       was one of the things that made sliding feel heavy. */
     background:
-        radial-gradient(circle at 18% 20%, rgba(6,182,212,.16), transparent 55%),
-        radial-gradient(circle at 82% 75%, rgba(139,92,246,.17), transparent 58%);
-    filter: blur(26px);
+        radial-gradient(circle at 18% 20%, rgba(6,182,212,.14), rgba(6,182,212,0) 62%),
+        radial-gradient(circle at 82% 75%, rgba(139,92,246,.15), rgba(139,92,246,0) 64%);
     opacity: .85;
     pointer-events: none;
-    will-change: transform, opacity;
-    animation: sliderGlowDrift 11s ease-in-out infinite alternate;
+    animation: sliderGlowDrift 14s ease-in-out infinite alternate;
 }
 @keyframes sliderGlowDrift {
     from { transform: translate3d(-1.2rem, .6rem, 0) scale(.96); opacity: .6; }
     to   { transform: translate3d(1.2rem, -.8rem, 0) scale(1.06); opacity: .95; }
 }
+/* Scrolled out of view: nothing about the carousel needs to keep ticking. */
+.shop-slider.slider-paused .slider-glow { animation-play-state: paused; }
 .slider-viewport {
     position: relative;
     overflow: hidden;
@@ -2092,27 +2107,34 @@ img { max-width: 100%; display: block; }
     display: flex;
     gap: var(--slider-gap);
     align-items: stretch;
-    will-change: transform;
     transform: translate3d(0, 0, 0);
-    transition: transform .8s cubic-bezier(.16, .86, .22, 1);
+    transition: transform .56s cubic-bezier(.22, .78, .24, 1);
 }
+/* Promote the track to its own layer only while a slide is actually moving.
+   A permanent `will-change: transform` kept a several-thousand-pixel-wide
+   layer alive for the whole session, which low-end devices paid for on every
+   single frame. The browser promotes it for the transition anyway. */
+.slider-track.is-moving { will-change: transform; }
 .slider-track.no-anim { transition: none !important; }
 .slider-item {
     flex: 0 0 calc((100% - (var(--per-view) - 1) * var(--slider-gap)) / var(--per-view));
     min-width: 0;
     display: flex;
     transform-origin: center center;
-    transition: transform .72s cubic-bezier(.2, .8, .25, 1), opacity .6s ease, filter .6s ease;
-    opacity: .45;
-    transform: scale(.84);
-    filter: saturate(.7) blur(1.6px);
+    /* Opacity + scale only: both are composited by the GPU. The old
+       blur()/saturate() filters forced a full re-raster of every card on
+       every slide — the main reason scrolling through the slider froze. */
+    transition: transform .52s cubic-bezier(.2, .8, .25, 1), opacity .46s ease;
+    opacity: .42;
+    transform: scale(.86);
+    /* Keep each slide's style/layout work from spilling out to the page. */
+    contain: layout style;
 }
-.slider-item.is-near { opacity: .78; transform: scale(.92); filter: blur(.6px); }
-.slider-item.is-far { opacity: .38; }
+.slider-item.is-near { opacity: .74; transform: scale(.93); }
+.slider-item.is-far { opacity: .34; }
 .slider-item.is-active {
     opacity: 1;
     transform: scale(1);
-    filter: none;
     z-index: 3;
 }
 .slider-item > .product-card {
@@ -2189,14 +2211,18 @@ img { max-width: 100%; display: block; }
 }
 .slider-progress span {
     display: block;
-    width: 0;
+    width: 100%;
     height: 100%;
     border-radius: inherit;
     background: var(--gradient);
     box-shadow: 0 0 12px rgba(6, 182, 212, .6);
+    /* scaleX instead of width: growing the width re-laid-out this bar on
+       every frame of the countdown; a transform is composited for free. */
+    transform: scaleX(0);
+    transform-origin: right center;
 }
 .slider-progress.is-running span { animation: sliderProgress var(--slider-duration, 4600ms) linear forwards; }
-@keyframes sliderProgress { from { width: 0; } to { width: 100%; } }
+@keyframes sliderProgress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 [data-theme="dark"] .slider-item > .product-card { box-shadow: 0 14px 34px rgba(0, 0, 0, .35); }
 
 @media (max-width: 1100px) {
@@ -2453,6 +2479,18 @@ img { max-width: 100%; display: block; }
     opacity: .34;
     animation: neonBorderFlow 9s linear infinite, cardNeonPulse 6.5s ease-in-out infinite;
     animation-delay: var(--neon-delay, 0s), var(--neon-delay, 0s);
+    /* Parked by default: a card that nobody is looking at must not repaint.
+       app.js flips `.is-live` on as soon as the card enters the viewport
+       (and off again when it leaves). */
+    animation-play-state: paused;
+}
+.public-site .feature-card.is-live::after,
+.public-site .product-card.is-live::after,
+.public-site .project-card.is-live::after,
+.public-site .about-block.is-live::after,
+.public-site .contact-card.is-live::after,
+.public-site .contact-form.is-live::after {
+    animation-play-state: running;
 }
 .public-site .feature-card:hover::after,
 .public-site .product-card:hover::after,
@@ -2463,7 +2501,13 @@ img { max-width: 100%; display: block; }
     opacity: 1;
     animation: neonBorderFlow 2.4s linear infinite, cardNeonPulse 3.2s ease-in-out infinite;
     animation-delay: var(--neon-delay, 0s), var(--neon-delay, 0s);
+    animation-play-state: running;
 }
+/* Inside the carousel only the centred card animates. Without this, a single
+   slide animated the neon border + box-shadow pulse of every card in the
+   track at the same time. Hovering still brings any card to life. */
+.public-site .slider-item:not(.is-active) > .product-card::after { animation-play-state: paused; }
+.public-site .slider-item > .product-card:hover::after { animation-play-state: running; }
 @keyframes cardNeonPulse {
     0%, 100% { box-shadow: 0 0 0 rgba(6, 182, 212, 0); }
     50% { box-shadow: 0 0 22px rgba(6, 182, 212, .3), inset 0 0 18px rgba(139, 92, 246, .12); }
@@ -2471,7 +2515,12 @@ img { max-width: 100%; display: block; }
 .public-site .about-block::after,
 .public-site .contact-form::after,
 .public-site .contact-card::after { border-radius: inherit; }
-.public-site .skill-tag { animation: cardNeonPulse 5.5s ease-in-out infinite; animation-delay: var(--neon-delay, 0s); }
+.public-site .skill-tag {
+    animation: cardNeonPulse 5.5s ease-in-out infinite;
+    animation-delay: var(--neon-delay, 0s);
+    animation-play-state: paused;
+}
+.public-site .skill-tag.is-live { animation-play-state: running; }
 .public-site .skill-tag:hover { animation-play-state: paused; }
 
 /* ========================================================================
@@ -2518,3 +2567,24 @@ img { max-width: 100%; display: block; }
     .floating-shape { animation: none; }
     .slider-glow { animation: none; opacity: .7; }
 }
+
+/* ========================================================================
+   Motion budget: low-power devices (few cores / little memory) keep every
+   hover animation and every slider transition, but drop the loops that never
+   stop repainting. app.js adds `.motion-lite` to <html> when it detects one.
+   ======================================================================== */
+.motion-lite .neon-cursor-glow { display: none; }
+.motion-lite .slider-glow { animation: none; opacity: .7; }
+.motion-lite .public-site .feature-card::after,
+.motion-lite .public-site .product-card::after,
+.motion-lite .public-site .project-card::after,
+.motion-lite .public-site .about-block::after,
+.motion-lite .public-site .contact-card::after,
+.motion-lite .public-site .contact-form::after {
+    animation: none;
+    opacity: .3;
+}
+.motion-lite .public-site .skill-tag { animation: none; }
+.motion-lite .public-site .btn-primary { animation: none; }
+.motion-lite .floating-shape { animation: none; }
+.motion-lite .slider-item { transition-duration: .38s; }

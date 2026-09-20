@@ -549,6 +549,8 @@ function initShopSlider(container) {
     const offset = Math.round((items.length - count) / 2);
     const loop = offset > 0 && count > 1;
     const AUTOPLAY_MS = 4600;
+    // Must stay in sync with the .slider-track transition in styles.css.
+    const MOVE_MS = 560;
     const reduce = prefersReducedMotion();
 
     const dots = Array.from(root.querySelectorAll('.slider-dot'));
@@ -558,62 +560,123 @@ function initShopSlider(container) {
 
     let index = Math.min(Math.max(parseInt(container.dataset.sliderIndex || '0', 10) || 0, 0), count - 1);
     let translate = 0, busy = false, queued = 0, queuedDot = -1;
-    let timer = null, settleTimer = null, hovering = false, dragging = false, visible = true, dragPointer = null;
-    let dragStartX = 0, dragBase = 0, dragDelta = 0;
+    let timer = null, settleTimer = null, moveFrame = 0, progressFrame = 0;
+    let hovering = false, dragging = false, visible = true, dragPointer = null;
+    let dragStartX = 0, dragBase = 0, dragDelta = 0, dragLatestX = 0;
+    let lastCenter = null;
 
     const normalize = i => ((i % count) + count) % count;
     const domIndex = i => offset + i;
 
+    // ---- Cached geometry -------------------------------------------------
+    // Every slide used to read offsetLeft/offsetWidth/clientWidth straight out
+    // of the DOM, which forces a synchronous layout on each step (and on every
+    // drag frame). Measuring once per layout change keeps the animation itself
+    // free of layout work.
+    const metrics = { view: 0, gap: 0, width: 0, centers: [] };
+    function measure() {
+        metrics.view = viewport.clientWidth;
+        const styles = getComputedStyle(track);
+        const gap = parseFloat(styles.columnGap || styles.gap);
+        metrics.gap = isNaN(gap) ? 0 : gap;
+        metrics.centers = items.map(el => el.offsetLeft + el.offsetWidth / 2);
+        metrics.width = items[offset] ? items[offset].offsetWidth : 0;
+        return metrics.view > 2;
+    }
+    function centerOf(domI) {
+        const c = metrics.centers[domI];
+        return c == null ? translate : metrics.view / 2 - c;
+    }
+
     function applyTransform(animated, value) {
-        const width = viewport.clientWidth;
-        if (width < 2) return false;
-        translate = typeof value === 'number' ? value : centeredTranslate(domIndex(index));
-        if (!animated) track.classList.add('no-anim');
-        track.style.transform = `translate3d(${translate.toFixed(1)}px,0,0)`;
-        if (!animated) { void track.offsetWidth; track.classList.remove('no-anim'); }
+        if (!metrics.view && !measure()) return false;
+        translate = typeof value === 'number' ? value : centerOf(domIndex(index));
+        const css = `translate3d(${translate.toFixed(1)}px,0,0)`;
+        // Nothing to animate (e.g. a drag that ended where it started): do not
+        // leave the layer hint behind, no transitionend will ever fire.
+        if (animated && track.style.transform === css) { track.classList.remove('is-moving'); return true; }
+        if (!animated) {
+            track.classList.add('no-anim');
+            track.style.transform = css;
+            // One forced flush so the jump is not animated, then drop the hint.
+            void track.offsetWidth;
+            track.classList.remove('no-anim', 'is-moving');
+            return true;
+        }
+        track.classList.add('is-moving');
+        track.style.transform = css;
         return true;
     }
-    function centeredTranslate(domI) {
-        const el = items[domI];
-        if (!el) return translate;
-        return viewport.clientWidth / 2 - (el.offsetLeft + el.offsetWidth / 2);
-    }
-    function paintDepth() {
+
+    // Only the slides whose depth actually changed get touched: repainting the
+    // class list of all 14 slides per step was pure style-recalc overhead.
+    function paintDepth(force) {
         const center = domIndex(index);
-        items.forEach((el, i) => {
-            const d = i - center;
+        if (!force && lastCenter === center) return;
+        let from, to;
+        if (force || lastCenter == null) { from = 0; to = items.length - 1; }
+        else { from = Math.min(lastCenter, center) - 2; to = Math.max(lastCenter, center) + 2; }
+        lastCenter = center;
+        for (let i = from; i <= to; i++) {
+            const el = items[i];
+            if (!el) continue;
+            const d = i - center, a = Math.abs(d);
             el.classList.toggle('is-active', d === 0);
-            el.classList.toggle('is-near', Math.abs(d) === 1);
-            el.classList.toggle('is-far', Math.abs(d) > 1);
-        });
+            el.classList.toggle('is-near', a === 1);
+            el.classList.toggle('is-far', a > 1);
+        }
         const active = normalize(index);
-        dots.forEach((dot, i) => dot.classList.toggle('is-active', i === active));
+        dots.forEach((dot, i) => {
+            const on = i === active;
+            if (dot.classList.contains('is-active') !== on) dot.classList.toggle('is-active', on);
+        });
         if (container.dataset) container.dataset.sliderIndex = String(active);
     }
+
     function restartProgress() {
         if (!progress || reduce || !loop) return;
         progress.style.setProperty('--slider-duration', `${AUTOPLAY_MS}ms`);
         progress.classList.remove('is-running');
-        void progress.offsetWidth;
-        progress.classList.add('is-running');
+        // rAF instead of the classic `void offsetWidth` reflow: no forced
+        // layout on the main thread on every single slide.
+        cancelAnimationFrame(progressFrame);
+        progressFrame = requestAnimationFrame(() => {
+            if (root.isConnected) progress.classList.add('is-running');
+        });
     }
-    function stopProgress() { if (progress) progress.classList.remove('is-running'); }
+    function stopProgress() {
+        cancelAnimationFrame(progressFrame);
+        if (progress) progress.classList.remove('is-running');
+    }
     function schedule() {
         clearTimeout(timer);
+        // A re-render replaced this slider: stop everything instead of
+        // accumulating listeners on detached nodes.
+        if (!root.isConnected) { teardown(); return; }
         if (!loop || reduce || busy || dragging || hovering || !visible || document.hidden) { stopProgress(); return; }
         timer = setTimeout(() => step(1), AUTOPLAY_MS);
         restartProgress();
     }
+    function onMoveEnd(e) {
+        if (e.target !== track || e.propertyName !== 'transform') return;
+        track.classList.remove('is-moving');
+        if (busy) settle();
+    }
+    track.addEventListener('transitionend', onMoveEnd);
     function afterMotion() {
         clearTimeout(settleTimer);
-        settleTimer = setTimeout(settle, reduce ? 30 : 800);
+        // Fallback only: transitionend above normally settles much sooner, so
+        // a slide is never blocked for longer than the CSS transition.
+        settleTimer = setTimeout(settle, reduce ? 40 : MOVE_MS + 120);
     }
     function settle() {
+        clearTimeout(settleTimer);
         const canonical = normalize(index);
         if (canonical !== index) {
             index = canonical;
             applyTransform(false);
         }
+        track.classList.remove('is-moving');
         busy = false;
         paintDepth();
         if (queued) { const dir = queued > 0 ? 1 : -1; queued -= dir; step(dir); return; }
@@ -666,32 +729,42 @@ function initShopSlider(container) {
         if (e.key === 'ArrowRight') { step(-1); e.preventDefault(); }
     });
 
-    // Drag / swipe
+    // ---- Drag / swipe (one style write per frame) ------------------------
+    function paintDrag() {
+        moveFrame = 0;
+        if (!dragging) return;
+        dragDelta = dragLatestX - dragStartX;
+        track.classList.add('no-anim', 'is-moving');
+        track.style.transform = `translate3d(${(dragBase + dragDelta * 0.92).toFixed(1)}px,0,0)`;
+    }
     viewport.addEventListener('pointerdown', e => {
         if (e.pointerType === 'mouse' && e.button !== 0) return;
         if (e.target.closest('.slider-arrow, .slider-dot, a, button[data-quick]')) return;
-        dragging = true; dragPointer = e.pointerId; dragStartX = e.clientX; dragDelta = 0; dragBase = translate;
+        dragging = true; dragPointer = e.pointerId; dragStartX = e.clientX; dragLatestX = e.clientX;
+        dragDelta = 0; dragBase = translate;
         viewport.classList.add('is-dragging');
         clearTimeout(timer); stopProgress();
         try { viewport.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
     });
     viewport.addEventListener('pointermove', e => {
         if (!dragging || e.pointerId !== dragPointer) return;
-        dragDelta = e.clientX - dragStartX;
-        track.classList.add('no-anim');
-        track.style.transform = `translate3d(${(dragBase + dragDelta * 0.92).toFixed(1)}px,0,0)`;
-        if (Math.abs(dragDelta) > 6 && e.cancelable) e.preventDefault();
+        dragLatestX = e.clientX;
+        if (Math.abs(dragLatestX - dragStartX) > 6 && e.cancelable) e.preventDefault();
+        if (moveFrame) return;
+        moveFrame = requestAnimationFrame(paintDrag);
     });
     const endDrag = e => {
         if (!dragging || (e && e.pointerId !== dragPointer)) return;
+        cancelAnimationFrame(moveFrame); moveFrame = 0;
         dragging = false;
         viewport.classList.remove('is-dragging');
         track.classList.remove('no-anim');
         try { viewport.releasePointerCapture(dragPointer); } catch (err) { /* ignore */ }
         dragPointer = null;
-        const stride = items[offset] ? (items[offset].offsetWidth + sliderGap()) : 100;
-        const steps = Math.abs(dragDelta) > Math.max(40, stride * 0.18) ? Math.max(1, Math.min(2, Math.round(Math.abs(dragDelta) / stride))) : 0;
-        if (Math.abs(dragDelta) > 8) {
+        const stride = metrics.width ? metrics.width + metrics.gap : 100;
+        const moved = Math.abs(dragDelta);
+        const steps = moved > Math.max(40, stride * 0.18) ? Math.max(1, Math.min(2, Math.round(moved / stride))) : 0;
+        if (moved > 8) {
             // swallow the click that the browser fires right after a swipe
             const kill = ev => { ev.stopPropagation(); ev.preventDefault(); };
             viewport.addEventListener('click', kill, { capture: true, once: true });
@@ -710,46 +783,44 @@ function initShopSlider(container) {
     viewport.addEventListener('lostpointercapture', endDrag);
     viewport.addEventListener('dragstart', e => e.preventDefault());
 
-    function sliderGap() {
-        const styles = getComputedStyle(track);
-        const gap = parseFloat(styles.columnGap || styles.gap);
-        return isNaN(gap) ? 0 : gap;
-    }
-
-    // Keep the active slide centered on any layout change
-    const relayout = () => { if (!applyTransform(false)) return; paintDepth(); };
+    // ---- Layout changes --------------------------------------------------
+    const relayout = () => { if (!measure()) return; if (!applyTransform(false)) return; paintDepth(true); };
     let ro = null, io = null, resizeQueued = false;
+    function teardown() {
+        window.removeEventListener('resize', onResize);
+        document.removeEventListener('shop-slider-refresh', onRefresh);
+        track.removeEventListener('transitionend', onMoveEnd);
+        if (ro) ro.disconnect();
+        if (io) io.disconnect();
+        cancelAnimationFrame(moveFrame); cancelAnimationFrame(progressFrame);
+        clearTimeout(timer); clearTimeout(settleTimer);
+    }
     const onResize = () => {
         // A re-render replaces this slider's DOM; drop stale global listeners
         // instead of accumulating layout reads on detached nodes forever.
-        if (!root.isConnected) {
-            window.removeEventListener('resize', onResize);
-            document.removeEventListener('shop-slider-refresh', onRefresh);
-            if (ro) ro.disconnect();
-            if (io) io.disconnect();
-            clearTimeout(timer); clearTimeout(settleTimer);
-            return;
-        }
+        if (!root.isConnected) { teardown(); return; }
         if (resizeQueued) return;
         resizeQueued = true;
         requestAnimationFrame(() => { resizeQueued = false; relayout(); });
     };
     const onRefresh = () => { if (root.isConnected) relayout(); };
     window.addEventListener('resize', onResize);
+    document.addEventListener('shop-slider-refresh', onRefresh);
     if (typeof ResizeObserver === 'function') {
-        ro = new ResizeObserver(relayout);
+        ro = new ResizeObserver(onResize);
         ro.observe(viewport);
     }
     if (typeof IntersectionObserver === 'function') {
         io = new IntersectionObserver(entries => {
             visible = entries.some(en => en.isIntersecting);
+            // Off-screen carousel: park every running animation with it.
+            root.classList.toggle('slider-paused', !visible);
             if (visible) { relayout(); schedule(); } else { stopProgress(); clearTimeout(timer); }
         }, { threshold: 0.15 });
         io.observe(root);
     }
-    document.addEventListener('shop-slider-refresh', onRefresh);
 
-    requestAnimationFrame(() => { relayout(); paintDepth(); schedule(); });
+    requestAnimationFrame(() => { relayout(); paintDepth(true); schedule(); });
 }
 
 function refreshShopEverywhere() {
@@ -1548,24 +1619,66 @@ function renderSitePage() {
 }
 
 // ============== Cards: staggered neon motion ==============
+const CARD_SELECTOR = '.public-site .feature-card, .public-site .product-card, .public-site .project-card, .public-site .about-block, .public-site .contact-card, .public-site .contact-form';
+// The neon pulse / border flow are CSS animations on ::after. Left free-running
+// they repaint EVERY card on the page, forever — including the dozen cards
+// inside the slider. They are parked until a card is actually on screen.
+const CARD_FX_SELECTOR = CARD_SELECTOR + ', .public-site .skill-tag';
+let cardFxObserver = null;
+function observeCardFx() {
+    const cards = document.querySelectorAll(CARD_FX_SELECTOR);
+    if (typeof IntersectionObserver === 'undefined') {
+        cards.forEach(el => el.classList.add('is-live'));
+        return;
+    }
+    if (!cardFxObserver) {
+        cardFxObserver = new IntersectionObserver(entries => {
+            entries.forEach(en => {
+                // Re-renders replace the DOM: forget nodes that are gone.
+                if (!en.target.isConnected) { cardFxObserver.unobserve(en.target); return; }
+                en.target.classList.toggle('is-live', en.isIntersecting);
+            });
+        }, { rootMargin: '140px 0px' });
+    }
+    cards.forEach(el => {
+        if (el.dataset.fxObserved === '1') return;
+        el.dataset.fxObserved = '1';
+        cardFxObserver.observe(el);
+    });
+}
 function decorateCards() {
-    document.querySelectorAll('.public-site .feature-card, .public-site .product-card, .public-site .project-card, .public-site .about-block, .public-site .contact-card, .public-site .contact-form')
-        .forEach((card, i) => {
-            card.style.setProperty('--neon-delay', `${-((i % 5) * 1.35).toFixed(2)}s`);
-        });
+    document.querySelectorAll(CARD_SELECTOR).forEach((card, i) => {
+        const delay = `-${((i % 5) * 1.35).toFixed(2)}s`;
+        // Skip the write when it is already correct: this runs on every sync
+        // tick and touching inline style invalidates the card's style.
+        if (card.style.getPropertyValue('--neon-delay') !== delay) card.style.setProperty('--neon-delay', delay);
+    });
+    observeCardFx();
+}
+
+// ============== Motion budget: go easy on low-power devices ==============
+// Weak hardware gets the same design, minus the always-on animations that
+// never stop repainting. Hover effects and slide transitions are untouched.
+function initMotionBudget() {
+    try {
+        const nav = navigator || {};
+        const weak = (typeof nav.hardwareConcurrency === 'number' && nav.hardwareConcurrency <= 4) ||
+                     (typeof nav.deviceMemory === 'number' && nav.deviceMemory <= 4);
+        if (weak) document.documentElement.classList.add('motion-lite');
+    } catch (e) { /* ignore */ }
 }
 
 window.SITE=SITE; window.saveData=saveData; window.CAT_NAME_MAP=CAT_NAME_MAP;
 window.refreshShopEverywhere=refreshShopEverywhere;
 window.openProjectDetail=openProjectDetail; window.closeProjectDetail=closeProjectDetail;
-window.initShopSlider=initShopSlider; window.decorateCards=decorateCards;
+window.initShopSlider=initShopSlider; window.decorateCards=decorateCards; window.observeCardFx=observeCardFx; window.initMotionBudget=initMotionBudget;
 window.renderSitePage=renderSitePage; window.initSync=initSync;
 window.fetchRemoteData=fetchRemoteData; window.pushDataToServer=pushDataToServer;
 window.siteSyncState=siteSyncState; window.emitSync=emitSync;
 
 document.addEventListener('DOMContentLoaded', () => {
     // Each step is isolated so a single failure can never blank the whole page.
-    [initTheme, initNavbar, initCounters, initContactForm, setYear, createCartUI, initContentProtection, renderSitePage, initTypewriter]
+    [initTheme, initMotionBudget, initNavbar, initCounters, initContactForm, setYear, createCartUI, initContentProtection, renderSitePage, initTypewriter]
         .forEach(fn => { try { fn(); } catch (e) { console.error('[site] init failed:', fn.name, e); } });
     // Keep every visitor in sync with the admin panel's latest changes.
     if (!document.getElementById('adminPage')) {
