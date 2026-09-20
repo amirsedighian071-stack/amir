@@ -1,44 +1,48 @@
-// Netlify Function: Telegram Bot Webhook
-// Handles /start with order ID, receipt upload, admin approval
-const fs = require('fs');
-const path = require('path');
+// Netlify Function: Telegram bot webhook.
+// Handles order deep links, receipt uploads and admin payment approval.
 const fetch = require('node-fetch');
-const ORDERS_FILE = path.join('/tmp', 'orders.json');
+const { getTelegramConfig } = require('./lib/telegram-config');
+const {
+  findOrder,
+  findPendingReceiptOrder,
+  updateOrder
+} = require('./lib/orders');
 
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
-const PAYMENT_CARD = process.env.PAYMENT_CARD || 'شماره کارت در تنظیمات وارد نشده';
-const PAYMENT_CARD_HOLDER = process.env.PAYMENT_CARD_HOLDER || 'نام صاحب کارت در تنظیمات وارد نشده';
-
-function loadOrders() { try { return JSON.parse(fs.readFileSync(ORDERS_FILE,'utf8')); } catch(e){ return []; } }
-function saveOrders(o) { fs.writeFileSync(ORDERS_FILE, JSON.stringify(o, null, 2)); }
-function findOrder(oid) { return loadOrders().find(o => o.id === oid); }
-function updateOrder(oid, patch) {
-  const orders = loadOrders();
-  const idx = orders.findIndex(o => o.id === oid);
-  if (idx >= 0) { orders[idx] = {...orders[idx], ...patch}; saveOrders(orders); return orders[idx]; }
-  return null;
+function toPersian(n) {
+  const p = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
+  return String(n).replace(/\d/g, (d) => p[d]);
 }
-function toPersian(n) { const p=['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹']; return String(n).replace(/\d/g,d=>p[d]); }
-function fmtPrice(n) { return toPersian(Number(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,',')); }
-function base64Decode(s) { return Buffer.from(s.replace(/-/g,'+').replace(/_/g,'/'), 'base64').toString('utf8'); }
+function fmtPrice(n) {
+  return toPersian(Number(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+}
+function base64Decode(value) {
+  return Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+}
 
-async function tgApi(method, body) {
-  const resp = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
+async function telegramApi(config, method, body) {
+  const response = await fetch(`https://api.telegram.org/bot${config.botToken}/${method}`, {
     method: 'POST',
-    headers: {'Content-Type':'application/json'},
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  return resp.json();
+  const payload = await response.json();
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.description || `Telegram ${method} failed`);
+  }
+  return payload.result;
 }
 
-function sendMessage(chat_id, text, extra={}) {
-  return tgApi('sendMessage', { chat_id, text, parse_mode:'HTML', ...extra });
+function sendMessage(config, chatId, text, extra = {}) {
+  return telegramApi(config, 'sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', ...extra });
 }
 
-// Build invoice text for customer
-function invoiceText(order) {
-  const items = order.items.map(i => `▫️ ${i.name} × ${toPersian(i.qty)}: <b>${fmtPrice(i.price*i.qty)} ت</b>`).join('\n');
+function invoiceText(order, config) {
+  const items = order.items
+    .map((item) => `▫️ ${item.name} × ${toPersian(item.qty)}: <b>${fmtPrice(item.price * item.qty)} ت</b>`)
+    .join('\n');
+  const cardNumber = config.cardNumber || 'شماره کارت در تنظیمات وارد نشده';
+  const cardHolder = config.cardHolder || 'نام صاحب کارت در تنظیمات وارد نشده';
+
   return `👋 سلام ${order.name} عزیز\n` +
     `سفارش شما با موفقیت ثبت شد! 🎉\n\n` +
     `📦 <b>شماره فاکتور:</b> <code>${order.id}</code>\n` +
@@ -47,13 +51,13 @@ function invoiceText(order) {
     `━━━━━━━━━━━━━━\n` +
     `💰 <b>مبلغ قابل پرداخت: ${fmtPrice(order.total)} تومان</b>\n\n` +
     `💳 <b>اطلاعات کارت جهت واریز:</b>\n` +
-    `<code>${PAYMENT_CARD}</code>\n` +
-    `به نام: <b>${PAYMENT_CARD_HOLDER}</b>\n\n` +
+    `<code>${cardNumber}</code>\n` +
+    `به نام: <b>${cardHolder}</b>\n\n` +
     `✅ پس از واریز، لطفاً عکس فیش پرداختی را همینجا ارسال کنید.\n` +
     `تا بررسی شده و سرویس شما فعال گردد.`;
 }
 
-function kbMain(order) {
+function mainKeyboard(order) {
   return {
     reply_markup: {
       inline_keyboard: [
@@ -64,150 +68,189 @@ function kbMain(order) {
   };
 }
 
-function adminView(oid) {
-  const order = findOrder(oid); if (!order) return;
-  const items = order.items.map(i => `▫️ ${i.name} × ${toPersian(i.qty)}: <b>${fmtPrice(i.price*i.qty)} ت</b>`).join('\n');
+async function adminView(orderId) {
+  const order = await findOrder(orderId);
+  if (!order) return null;
+
+  const items = order.items
+    .map((item) => `▫️ ${item.name} × ${toPersian(item.qty)}: <b>${fmtPrice(item.price * item.qty)} ت</b>`)
+    .join('\n');
   const statusText = {
     awaiting_payment: '⏳ در انتظار پرداخت',
     receipt_uploaded: '📸 فیش ارسال شده',
     approved: '✅ تایید شده',
     rejected: '❌ رد شده'
   }[order.status] || order.status;
-  let text = `📋 <b>سفارش ${order.id}</b>\n` +
+
+  const text = `📋 <b>سفارش ${order.id}</b>\n` +
     `وضعیت: ${statusText}\n\n` +
     `👤 ${order.name}\n📱 <code>${order.phone}</code>\n` +
     (order.email ? `📧 ${order.email}\n` : '') +
     `━━━━━━━━━━━━━━\n${items}\n` +
     `━━━━━━━━━━━━━━\n💰 <b>${fmtPrice(order.total)} تومان</b>`;
-  let keyboard = [];
+  const keyboard = [];
   if (order.status === 'receipt_uploaded' && order.uploadedReceipt) {
     keyboard.push([
       { text: '✅ تایید پرداخت', callback_data: `approve:${order.id}` },
       { text: '❌ رد پرداخت', callback_data: `reject:${order.id}` }
     ]);
   }
-  keyboard.push([{ text: '💬 تماس با مشتری', url: `https://t.me/${String(order.phone).replace(/^0/,'')}` }]);
-  return { text, reply_markup: { inline_keyboard: keyboard } };
+  keyboard.push([{ text: '💬 تماس با مشتری', url: `https://t.me/${String(order.phone).replace(/^0/, '')}` }]);
+  return { order, text, reply_markup: { inline_keyboard: keyboard } };
 }
 
-// Pending receipt state per chat
-const pendingUpload = {}; // { chatId: orderId }
-
 exports.handler = async (event) => {
-  if (!BOT_TOKEN) return { statusCode: 500, body: 'BOT_TOKEN not set' };
+  const config = await getTelegramConfig();
+  if (!config.botToken) return { statusCode: 500, body: 'BOT_TOKEN not set' };
+
   try {
     const body = JSON.parse(event.body || '{}');
-    // Handle callback_query
+
     if (body.callback_query) {
-      const cb = body.callback_query;
-      const [action, oid] = cb.data.split(':');
-      const chatId = cb.from.id;
-      const msgId = cb.message.message_id;
-      await tgApi('answerCallbackQuery', { callback_query_id: cb.id });
+      const callback = body.callback_query;
+      const [action, orderId] = String(callback.data || '').split(':');
+      const chatId = callback.from.id;
+      const messageId = callback.message && callback.message.message_id;
+      await telegramApi(config, 'answerCallbackQuery', { callback_query_id: callback.id });
 
       if (action === 'upload') {
-        pendingUpload[chatId] = oid;
-        await sendMessage(chatId, '📸 لطفاً عکس/رسید پرداخت را به صورت عکس در این چت ارسال کنید.');
+        const order = await findOrder(orderId);
+        if (order) {
+          await updateOrder(orderId, {
+            pendingReceiptChatId: chatId,
+            pendingReceiptAt: new Date().toISOString()
+          });
+          await sendMessage(config, chatId, '📸 لطفاً عکس/رسید پرداخت را به صورت عکس در این چت ارسال کنید.');
+        }
       } else if (action === 'status') {
-        const order = findOrder(oid);
+        const order = await findOrder(orderId);
         if (order) {
-          const statusText = {awaiting_payment:'⏳ در انتظار پرداخت',receipt_uploaded:'📸 فیش دریافت شده، در حال بررسی',approved:'✅ تایید شده - سرویس فعال شد',rejected:'❌ پرداخت تایید نشد'}[order.status]||order.status;
-          await sendMessage(chatId, `📋 وضعیت سفارش <code>${oid}</code>: ${statusText}`);
+          const statusText = {
+            awaiting_payment: '⏳ در انتظار پرداخت',
+            receipt_uploaded: '📸 فیش دریافت شده، در حال بررسی',
+            approved: '✅ تایید شده - سرویس فعال شد',
+            rejected: '❌ پرداخت تایید نشد'
+          }[order.status] || order.status;
+          await sendMessage(config, chatId, `📋 وضعیت سفارش <code>${orderId}</code>: ${statusText}`);
         }
-      } else if (action === 'approve' && String(chatId) === String(ADMIN_CHAT_ID)) {
-        const order = updateOrder(oid, { status:'approved', approvedAt: new Date().toISOString() });
+      } else if (action === 'approve' && String(chatId) === String(config.chatId)) {
+        const order = await updateOrder(orderId, { status: 'approved', approvedAt: new Date().toISOString() });
         if (order) {
-          await sendMessage(chatId, `✅ سفارش <code>${oid}</code> تایید شد.`);
-          // Notify customer
-          await sendMessage(order.customerChatId, `🎉 <b>پرداخت شما تایید شد!</b>\nسرویس شما به زودی فعال می‌گردد.\nشماره پیگیری: <code>${order.id}</code>`);
-          // Update admin message
-          const updated = adminView(oid);
-          await tgApi('editMessageText', { chat_id: chatId, message_id: msgId, text: updated.text, parse_mode:'HTML', reply_markup: updated.reply_markup });
+          await sendMessage(config, chatId, `✅ سفارش <code>${orderId}</code> تایید شد.`);
+          if (order.customerChatId) {
+            await sendMessage(config, order.customerChatId, `🎉 <b>پرداخت شما تایید شد!</b>\nسرویس شما به زودی فعال می‌گردد.\nشماره پیگیری: <code>${order.id}</code>`);
+          }
+          const updated = await adminView(orderId);
+          if (updated && messageId) {
+            await telegramApi(config, 'editMessageText', {
+              chat_id: chatId,
+              message_id: messageId,
+              text: updated.text,
+              parse_mode: 'HTML',
+              reply_markup: updated.reply_markup
+            });
+          }
         }
-      } else if (action === 'reject' && String(chatId) === String(ADMIN_CHAT_ID)) {
-        const order = updateOrder(oid, { status:'rejected', rejectedAt: new Date().toISOString() });
+      } else if (action === 'reject' && String(chatId) === String(config.chatId)) {
+        const order = await updateOrder(orderId, { status: 'rejected', rejectedAt: new Date().toISOString() });
         if (order) {
-          await sendMessage(chatId, `❌ سفارش <code>${oid}</code> رد شد.`);
-          await sendMessage(order.customerChatId, `⚠️ متاسفانه پرداخت شما تایید نشد.\nلطفاً از طریق پشتیبانی پیگیری نمایید.`);
-          const updated = adminView(oid);
-          await tgApi('editMessageText', { chat_id: chatId, message_id: msgId, text: updated.text, parse_mode:'HTML', reply_markup: updated.reply_markup });
+          await sendMessage(config, chatId, `❌ سفارش <code>${orderId}</code> رد شد.`);
+          if (order.customerChatId) {
+            await sendMessage(config, order.customerChatId, '⚠️ متاسفانه پرداخت شما تایید نشد.\nلطفاً از طریق پشتیبانی پیگیری نمایید.');
+          }
+          const updated = await adminView(orderId);
+          if (updated && messageId) {
+            await telegramApi(config, 'editMessageText', {
+              chat_id: chatId,
+              message_id: messageId,
+              text: updated.text,
+              parse_mode: 'HTML',
+              reply_markup: updated.reply_markup
+            });
+          }
         }
-      } else if (action === 'view' && String(chatId) === String(ADMIN_CHAT_ID)) {
-        const av = adminView(oid);
-        if (av) {
-          if (order && order.uploadedReceipt) {
-            await tgApi('sendPhoto', { chat_id: chatId, photo: order.uploadedReceipt, caption: av.text, parse_mode:'HTML', reply_markup: av.reply_markup });
+      } else if (action === 'view' && String(chatId) === String(config.chatId)) {
+        const view = await adminView(orderId);
+        if (view) {
+          if (view.order.uploadedReceipt) {
+            await telegramApi(config, 'sendPhoto', {
+              chat_id: chatId,
+              photo: view.order.uploadedReceipt,
+              caption: view.text,
+              parse_mode: 'HTML',
+              reply_markup: view.reply_markup
+            });
           } else {
-            await sendMessage(chatId, av.text, av);
+            await sendMessage(config, chatId, view.text, { reply_markup: view.reply_markup });
           }
         }
       }
       return { statusCode: 200, body: 'ok' };
     }
 
-    // Handle message
-    const msg = body.message; if (!msg) return { statusCode:200, body:'ok' };
-    const chatId = msg.chat.id;
-    const text = msg.text || '';
+    const message = body.message;
+    if (!message) return { statusCode: 200, body: 'ok' };
 
-    // /start command
+    const chatId = message.chat.id;
+    const text = message.text || '';
     if (text.startsWith('/start')) {
-      const parts = text.split(' ');
-      if (parts.length > 1 && parts[1].length > 5) {
+      const parts = text.split(/\s+/, 2);
+      if (parts[1] && parts[1].length > 5) {
         try {
           const data = JSON.parse(base64Decode(parts[1]));
-          const order = findOrder(data.oid);
+          const order = await findOrder(data.oid);
           if (order) {
-            // Associate this telegram chat with the order
-            updateOrder(order.id, { customerChatId: chatId, customerUsername: msg.chat.username || '' });
-            await sendMessage(chatId, invoiceText(order), kbMain(order));
+            const updatedOrder = await updateOrder(order.id, {
+              customerChatId: chatId,
+              customerUsername: message.chat.username || ''
+            });
+            await sendMessage(config, chatId, invoiceText(updatedOrder, config), mainKeyboard(updatedOrder));
             return { statusCode: 200, body: 'ok' };
           }
-        } catch(e) { console.log('start parse error:', e); }
+        } catch (error) {
+          console.log('start parse error:', error.message);
+        }
       }
-      // Default welcome
-      await sendMessage(chatId, '👋 به ربات پشتیبانی امیر صدیقیان خوش آمدید.\nثبت سفارش از طریق وب‌سایت انجام می‌شود. 🌐');
-      return { statusCode:200, body:'ok' };
+      await sendMessage(config, chatId, '👋 به ربات پشتیبانی امیر صدیقیان خوش آمدید.\nثبت سفارش از طریق وب‌سایت انجام می‌شود. 🌐');
+      return { statusCode: 200, body: 'ok' };
     }
 
-    // Photo = receipt upload
-    if (msg.photo) {
-      const oid = pendingUpload[chatId];
-      if (!oid) {
-        await sendMessage(chatId, 'برای ارسال فیش، ابتدا از طریق سایت سفارش خود را ثبت کنید یا از دکمه «ارسال فیش پرداخت» استفاده کنید.');
-        return { statusCode:200, body:'ok' };
+    if (message.photo) {
+      const pendingOrder = await findPendingReceiptOrder(chatId);
+      if (!pendingOrder) {
+        await sendMessage(config, chatId, 'برای ارسال فیش، ابتدا از طریق سایت سفارش خود را ثبت کنید یا از دکمه «ارسال فیش پرداخت» استفاده کنید.');
+        return { statusCode: 200, body: 'ok' };
       }
-      const photo = msg.photo[msg.photo.length-1]; // highest resolution
-      const fileId = photo.file_id;
-      const order = updateOrder(oid, {
-        status:'receipt_uploaded',
-        uploadedReceipt: fileId,
+
+      const receipt = message.photo[message.photo.length - 1];
+      const order = await updateOrder(pendingOrder.id, {
+        status: 'receipt_uploaded',
+        uploadedReceipt: receipt.file_id,
         customerChatId: chatId,
+        pendingReceiptChatId: null,
         receiptAt: new Date().toISOString()
       });
-      if (order) {
-        delete pendingUpload[chatId];
-        await sendMessage(chatId, '✅ فیش شما دریافت شد.\nپس از بررسی، نتیجه از طریق همین ربات به شما اعلام خواهد شد.');
-        // Forward to admin
-        if (ADMIN_CHAT_ID) {
-          const av = adminView(oid);
-          await tgApi('sendPhoto', {
-            chat_id: ADMIN_CHAT_ID,
-            photo: fileId,
-            caption: `📸 فیش پرداخت جدید برای ${oid}\n👤 ${order.name} | 📱 ${order.phone}`,
+      await sendMessage(config, chatId, '✅ فیش شما دریافت شد.\nپس از بررسی، نتیجه از طریق همین ربات به شما اعلام خواهد شد.');
+
+      if (order && config.chatId) {
+        const view = await adminView(order.id);
+        if (view) {
+          await telegramApi(config, 'sendPhoto', {
+            chat_id: config.chatId,
+            photo: receipt.file_id,
+            caption: `📸 فیش پرداخت جدید برای ${order.id}\n👤 ${order.name} | 📱 ${order.phone}`,
             parse_mode: 'HTML',
-            reply_markup: av.reply_markup
+            reply_markup: view.reply_markup
           });
         }
       }
-      return { statusCode:200, body:'ok' };
+      return { statusCode: 200, body: 'ok' };
     }
 
-    // Default response
-    await sendMessage(chatId, 'لطفاً از طریق دکمه‌های راهنما استفاده کنید و یا عکس فیش پرداخت را ارسال نمایید.');
-    return { statusCode:200, body:'ok' };
-  } catch(err) {
-    console.log('Bot error:', err);
-    return { statusCode:500, body:err.message };
+    await sendMessage(config, chatId, 'لطفاً از طریق دکمه‌های راهنما استفاده کنید و یا عکس فیش پرداخت را ارسال نمایید.');
+    return { statusCode: 200, body: 'ok' };
+  } catch (error) {
+    console.log('Bot error:', error);
+    return { statusCode: 500, body: error.message };
   }
 };

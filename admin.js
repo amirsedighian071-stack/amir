@@ -837,64 +837,110 @@ on('delAllOrders', 'click', () => {
 });
 
 // ---- Telegram Settings
-function loadTelegramSettings() {
-    document.getElementById('tgToken').value = SITE.telegram.botToken || '';
-    document.getElementById('tgChatId').value = SITE.telegram.chatId || '';
-    document.getElementById('tgBotUsername').value = SITE.telegram.botUsername || '';
-    document.getElementById('tgCard').value = SITE.telegram.cardNumber || '';
-    document.getElementById('tgCardHolder').value = SITE.telegram.cardHolder || '';
-    updateTgStatus();
+// Telegram's API does not accept browser CORS requests. The panel therefore
+// delegates validation, test delivery and webhook setup to a server function.
+let telegramStatus = { configured: false };
+
+function telegramMessage(type, text) {
+    const msg = byId('tgMsg');
+    if (!msg) return;
+    msg.className = `alert alert-${type}`;
+    msg.textContent = text;
 }
-function updateTgStatus() {
-    const box = document.getElementById('tgStatus'); if (!box) return;
-    if (SITE.telegram.botToken && SITE.telegram.chatId) {
-        box.innerHTML = `<span style="color:var(--success);"><i class="fas fa-check-circle"></i> ربات پیکربندی شده است</span>`;
+
+function updateTgStatus(status = telegramStatus) {
+    const box = byId('tgStatus');
+    if (!box) return;
+    if (status && status.configured) {
+        const bot = status.botUsername ? ` برای @${status.botUsername}` : '';
+        const chat = status.chatIdHint ? ` (چت ${status.chatIdHint})` : '';
+        box.innerHTML = `<span style="color:var(--success);"><i class="fas fa-check-circle"></i> ربات${bot} پیکربندی شده است${chat}.</span><div style="margin-top:0.35rem;color:var(--text-secondary);font-size:0.8rem;">توکن به‌صورت امن روی سرور نگهداری می‌شود و نمایش داده نمی‌شود.</div>`;
     } else {
         box.innerHTML = `<span style="color:var(--warning);"><i class="fas fa-exclamation-triangle"></i> هنوز پیکربندی نشده است</span>`;
     }
 }
+
+async function refreshTelegramStatus() {
+    try {
+        const response = await fetch('/api/telegram-settings', { cache: 'no-store' });
+        if (!response.ok) throw new Error('status unavailable');
+        const data = await response.json();
+        if (data && data.ok) {
+            telegramStatus = data;
+            if (data.botUsername && !byId('tgBotUsername').value) byId('tgBotUsername').value = data.botUsername;
+        }
+    } catch (error) {
+        // Keep the old local indicator as a graceful fallback in static previews.
+        telegramStatus = { configured: Boolean(SITE.telegram.botToken && SITE.telegram.chatId) };
+    }
+    updateTgStatus();
+}
+
+function loadTelegramSettings() {
+    // A legacy browser-only setup may still exist locally. It is shown once so
+    // the admin can migrate it to the protected server-side store.
+    byId('tgToken').value = SITE.telegram.botToken || '';
+    byId('tgChatId').value = SITE.telegram.chatId || '';
+    byId('tgBotUsername').value = SITE.telegram.botUsername || '';
+    byId('tgCard').value = SITE.telegram.cardNumber || '';
+    byId('tgCardHolder').value = SITE.telegram.cardHolder || '';
+    refreshTelegramStatus();
+}
+
 on('saveTelegram', 'click', async () => {
-    const token = document.getElementById('tgToken').value.trim();
-    const chatId = document.getElementById('tgChatId').value.trim();
-    const botUsername = document.getElementById('tgBotUsername').value.trim().replace('@','');
-    const cardNumber = document.getElementById('tgCard').value.trim();
-    const cardHolder = document.getElementById('tgCardHolder').value.trim();
-    const msg = document.getElementById('tgMsg');
-    SITE.telegram.botToken = token;
-    SITE.telegram.chatId = chatId;
-    SITE.telegram.botUsername = botUsername;
-    SITE.telegram.cardNumber = cardNumber;
-    SITE.telegram.cardHolder = cardHolder;
-    saveData();
+    const token = byId('tgToken').value.trim();
+    const chatId = byId('tgChatId').value.trim();
+    const botUsername = byId('tgBotUsername').value.trim().replace(/^@+/, '');
+    const cardNumber = byId('tgCard').value.trim();
+    const cardHolder = byId('tgCardHolder').value.trim();
+
     if (!token || !chatId) {
-        msg.className = 'alert alert-error'; msg.textContent = 'لطفاً هر دو فیلد را وارد کنید.'; updateTgStatus();
+        telegramMessage('error', 'لطفاً توکن ربات و آیدی چت ادمین را وارد کنید.');
         return;
     }
-    msg.className = ''; msg.textContent = '';
-    const btn = document.getElementById('saveTelegram');
-    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> در حال تست...';
+
+    const btn = byId('saveTelegram');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> در حال تست و تنظیم ربات...';
+    byId('tgMsg').className = '';
+    byId('tgMsg').textContent = '';
+
     try {
-        const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        const response = await fetch('/api/telegram-settings', {
             method: 'POST',
-            headers: {'Content-Type':'application/json'},
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                chat_id: chatId,
-                text: '✅ <b>اتصال ربات موفقیت‌آمیز بود!</b>\nاکنون سفارشات جدید فروشگاه به این چت ارسال می‌شوند.',
-                parse_mode: 'HTML'
+                admin: { username: SITE.auth.username, password: SITE.auth.password },
+                config: { botToken: token, chatId, botUsername, cardNumber, cardHolder }
             })
         });
-        const data = await resp.json();
-        if (data.ok) {
-            msg.className = 'alert alert-success'; msg.textContent = '✓ پیام تست با موفقیت ارسال شد! تنظیمات ذخیره گردید.';
-        } else {
-            msg.className = 'alert alert-error'; msg.textContent = 'خطا: ' + (data.description || 'مقادیر را بررسی کنید');
-        }
-    } catch(err) {
-        msg.className = 'alert alert-error'; msg.textContent = 'خطا در برقراری ارتباط با تلگرام. اتصال اینترنت و مقادیر را بررسی کنید.';
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) throw new Error(data.error || 'ذخیره تنظیمات ناموفق بود.');
+
+        // Never put credentials into localStorage or shared site data again.
+        SITE.telegram.botUsername = data.botUsername || botUsername;
+        SITE.telegram.cardNumber = cardNumber;
+        SITE.telegram.cardHolder = cardHolder;
+        delete SITE.telegram.botToken;
+        delete SITE.telegram.chatId;
+        saveData();
+        byId('tgToken').value = '';
+        byId('tgChatId').value = '';
+
+        telegramStatus = {
+            configured: true,
+            botUsername: SITE.telegram.botUsername,
+            chatIdHint: `…${chatId.slice(-4)}`
+        };
+        updateTgStatus();
+        telegramMessage('success', `✓ ${data.message || 'پیام تست ارسال و تنظیمات ذخیره شد.'}`);
+        showAdminToast('ربات تلگرام با موفقیت تنظیم شد.');
+    } catch (error) {
+        telegramMessage('error', `خطا: ${error.message || 'ارتباط با سرور ناموفق بود.'}`);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save"></i> ذخیره، تست و فعال‌سازی ربات';
     }
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> ذخیره و تست';
-    updateTgStatus();
-    setTimeout(()=>{msg.className='';msg.textContent='';},6000);
 });
 
 // ---- Dashboard Init

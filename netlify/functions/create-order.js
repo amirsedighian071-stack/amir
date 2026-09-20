@@ -1,25 +1,30 @@
-// Netlify Function: Create order and return Telegram bot deep link
-const fs = require('fs');
-const path = require('path');
-const ORDERS_FILE = path.join('/tmp', 'orders.json');
-
-function loadOrders() {
-  try { return JSON.parse(fs.readFileSync(ORDERS_FILE, 'utf8')); } catch(e) { return []; }
-}
-function saveOrders(orders) {
-  fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2));
-}
+// Netlify Function: create a persistent order and return a Telegram deep link.
+const fetch = require('node-fetch');
+const { getTelegramConfig } = require('./lib/telegram-config');
+const { loadOrders, saveOrders } = require('./lib/orders');
 
 function toPersian(n) {
   const p = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
   return String(n).replace(/\d/g, d => p[d]);
 }
 function fmtPrice(n) {
-  return toPersian(Number(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,','));
+  return toPersian(Number(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','));
 }
 
-exports.handler = async (event, context) => {
-  // CORS
+async function telegramApi(token, method, body) {
+  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const result = await response.json();
+  if (!response.ok || !result.ok) {
+    throw new Error(result.description || 'Telegram API error');
+  }
+  return result.result;
+}
+
+exports.handler = async (event) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -27,30 +32,32 @@ exports.handler = async (event, context) => {
     'Content-Type': 'application/json'
   };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
-  if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({error:'Method not allowed'}) };
+  if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
 
   try {
     const order = JSON.parse(event.body || '{}');
-    if (!order.id || !order.name || !order.phone) {
-      return { statusCode: 400, headers, body: JSON.stringify({error:'Missing fields'}) };
+    if (!order.id || !order.name || !order.phone || !Array.isArray(order.items) || !order.items.length) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing fields' }) };
     }
+
     order.status = 'awaiting_payment';
     order.uploadedReceipt = null;
+    order.pendingReceiptChatId = null;
     order.createdAt = new Date().toISOString();
 
-    const orders = loadOrders();
+    const orders = await loadOrders();
     orders.push(order);
-    saveOrders(orders);
+    await saveOrders(orders);
 
-    // Notify admin
-    const BOT_TOKEN = process.env.BOT_TOKEN;
-    const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
-    const BOT_USERNAME = process.env.BOT_USERNAME || '';
+    const telegram = await getTelegramConfig();
+    let adminNotified = false;
 
-    if (BOT_TOKEN && ADMIN_CHAT_ID) {
+    if (telegram.botToken && telegram.chatId) {
       try {
-        const items = order.items.map(i => `▫️ ${i.name} × ${toPersian(i.qty)}: <b>${fmtPrice(i.price*i.qty)} ت</b>`).join('\n');
-        const adminMsg = `🛒 <b>سفارش جدید</b>\n` +
+        const items = order.items
+          .map((item) => `▫️ ${item.name} × ${toPersian(item.qty)}: <b>${fmtPrice(item.price * item.qty)} ت</b>`)
+          .join('\n');
+        const adminMessage = `🛒 <b>سفارش جدید</b>\n` +
           `━━━━━━━━━━━━━━\n` +
           `📦 فاکتور: <code>${order.id}</code>\n` +
           `👤 نام: ${order.name}\n` +
@@ -62,36 +69,39 @@ exports.handler = async (event, context) => {
           `💰 <b>جمع کل: ${fmtPrice(order.total)} تومان</b>` +
           (order.note ? `\n📝 یادداشت: ${order.note}` : '');
 
-        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-          method: 'POST',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({
-            chat_id: ADMIN_CHAT_ID,
-            text: adminMsg,
-            parse_mode: 'HTML',
-            reply_markup: {
-              inline_keyboard: [[
-                { text: '📋 مشاهده سفارش', callback_data: `view:${order.id}` }
-              ]]
-            }
-          })
+        await telegramApi(telegram.botToken, 'sendMessage', {
+          chat_id: telegram.chatId,
+          text: adminMessage,
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [[{ text: '📋 مشاهده سفارش', callback_data: `view:${order.id}` }]]
+          }
         });
-      } catch(e) { console.log('Admin notify error:', e.message); }
+        adminNotified = true;
+      } catch (error) {
+        // The order is already persisted. The customer can still use the bot link.
+        console.log('Admin notify error:', error.message);
+      }
     }
 
-    // Return Telegram deep link so user is redirected to the bot with order ID
+    // Telegram only allows a limited, URL-safe start parameter. Keeping the
+    // payload to the order ID makes the deep link reliable for all names.
     let telegramUrl = null;
-    if (BOT_USERNAME) {
-      const param = Buffer.from(JSON.stringify({ oid: order.id, n: order.name })).toString('base64').replace(/=/g, '');
-      telegramUrl = `https://t.me/${BOT_USERNAME}?start=${param}`;
+    if (telegram.botUsername) {
+      const param = Buffer.from(JSON.stringify({ oid: order.id }))
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/g, '');
+      telegramUrl = `https://t.me/${telegram.botUsername}?start=${param}`;
     }
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ ok: true, orderId: order.id, telegramUrl })
+      body: JSON.stringify({ ok: true, orderId: order.id, telegramUrl, adminNotified })
     };
-  } catch(err) {
-    return { statusCode: 500, headers, body: JSON.stringify({error:err.message}) };
+  } catch (error) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
   }
 };

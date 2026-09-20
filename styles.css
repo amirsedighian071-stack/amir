@@ -196,8 +196,11 @@ img { max-width: 100%; display: block; }
 /* ========= Sections ========= */
 .section {
     padding: 6rem 0 4rem;
-    min-height: 100vh;
 }
+/* Only the hero needs to fill the viewport. Keeping generic sections at their
+   content height removes the empty area between the final CTA card and footer. */
+.cta-section { min-height: auto; }
+.page-section.cta-section { padding: 2rem 0; }
 .section-header {
     text-align: center;
     margin-bottom: 3rem;

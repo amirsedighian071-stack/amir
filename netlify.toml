@@ -16,3 +16,8 @@
   from = "/api/site-data"
   to = "/.netlify/functions/site-data"
   status = 200
+
+[[redirects]]
+  from = "/api/telegram-settings"
+  to = "/.netlify/functions/telegram-settings"
+  status = 200

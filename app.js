@@ -181,7 +181,14 @@ function pushDataToServer() {
     clearTimeout(_pushTimer);
     _pushTimer = setTimeout(async () => {
         try {
-            const payload = Object.assign({}, SITE);
+            // Telegram credentials are kept in a private server-side store. Older
+            // browser-only versions may still have them locally, so remove them before
+            // publishing a shared copy of the site data.
+            const payload = JSON.parse(JSON.stringify(SITE));
+            if (payload.telegram) {
+                delete payload.telegram.botToken;
+                delete payload.telegram.chatId;
+            }
             const r = await fetch(SYNC_ENDPOINT, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -209,7 +216,12 @@ function mergeRemote(remote) {
     });
     SITE.texts = Object.assign({}, DEFAULT_DATA.texts, remote.texts || {});
     SITE.visible = Object.assign({}, DEFAULT_DATA.visible, remote.visible || {});
-    SITE.telegram = Object.assign({}, DEFAULT_DATA.telegram, remote.telegram || {});
+    const remoteTelegram = Object.assign({}, remote.telegram || {});
+    // Credentials belonged to an older browser-only implementation. Never
+    // re-hydrate them from shared data; Telegram now keeps them server-side.
+    delete remoteTelegram.botToken;
+    delete remoteTelegram.chatId;
+    SITE.telegram = Object.assign({}, DEFAULT_DATA.telegram, remoteTelegram);
     SITE.auth = Object.assign({}, DEFAULT_DATA.auth, remote.auth || {});
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(SITE)); } catch (e) { /* quota: server copy still wins */ }
     return true;
