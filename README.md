@@ -48,6 +48,16 @@ git push -u origin main
 ### ۴. تنظیم اختیاری متغیرهای محیطی
 برای نصب‌های قدیمی یا پیکربندی خارج از پنل، این متغیرها همچنان به‌عنوان جایگزین پشتیبانی می‌شوند: `BOT_TOKEN`، `ADMIN_CHAT_ID`، `BOT_USERNAME`، `PAYMENT_CARD` و `PAYMENT_CARD_HOLDER`.
 
+## رفع عیب خطای ذخیره در Netlify Blobs
+اگر پنل خطای «تنظیمات در فضای دائمی Netlify Blobs ذخیره نشد» نشان می‌دهد یا وضعیت اتصال فضای دائمی قرمز است، دو متغیر زیر را در تنظیمات سایت Netlify بسازید:
+
+1. مقدار `NETLIFY_BLOBS_SITE_ID` را از مسیر **Site settings → General → Site details** و بخش **API ID** همان سایت بردارید.
+2. در مسیر **User settings → Applications** یک **Personal access token** بسازید و مقدار آن را به‌عنوان `NETLIFY_BLOBS_TOKEN` قرار دهید.
+3. هر دو متغیر را در **Site settings → Environment variables** برای محیط Production ذخیره کنید.
+4. سایت را **Redeploy** کنید؛ سپس تنظیمات تلگرام را دوباره از پنل ذخیره و تست کنید.
+
+توکن شخصی را در کد، مخزن Git یا پیام عمومی قرار ندهید.
+
 ## پنل مدیریت
 - آدرس: `/admin`
 - کاربر: `admin`

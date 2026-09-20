@@ -921,7 +921,10 @@ function telegramMessage(type, text) {
 function updateTgStatus(status = telegramStatus) {
     const box = byId('tgStatus');
     if (!box) return;
-    if (status && status.configured) {
+    if (status && status.storageReady === false) {
+        const reason = status.storageError ? `<div style="margin-top:0.35rem;color:var(--text-secondary);font-size:0.78rem;direction:ltr;text-align:left;">${escapeHTML(status.storageError)}</div>` : '';
+        box.innerHTML = `<span style="color:var(--danger);"><i class="fas fa-times-circle"></i> اتصال فضای دائمی Netlify Blobs برقرار نیست.</span><div style="margin-top:0.35rem;color:var(--danger);font-size:0.82rem;">متغیرهای NETLIFY_BLOBS_SITE_ID و NETLIFY_BLOBS_TOKEN را تنظیم کنید و سایت را دوباره Deploy کنید.</div>${reason}`;
+    } else if (status && status.configured) {
         const bot = status.botUsername ? ` برای @${status.botUsername}` : '';
         const chat = status.chatIdHint ? ` (چت ${status.chatIdHint})` : '';
         box.innerHTML = `<span style="color:var(--success);"><i class="fas fa-check-circle"></i> ربات${bot} پیکربندی شده است${chat}.</span><div style="margin-top:0.35rem;color:var(--text-secondary);font-size:0.8rem;">توکن به‌صورت امن روی سرور نگهداری می‌شود و نمایش داده نمی‌شود.</div>`;
@@ -943,8 +946,13 @@ async function refreshTelegramStatus() {
             }
         }
     } catch (error) {
-        // Keep the old local indicator as a graceful fallback in static previews.
-        telegramStatus = { configured: Boolean(SITE.telegram.botToken && SITE.telegram.chatId) };
+        // Keep a visible warning in static previews instead of implying that
+        // credentials are durable when the settings function is unavailable.
+        telegramStatus = {
+            configured: Boolean(SITE.telegram.botToken && SITE.telegram.chatId),
+            storageReady: false,
+            storageError: error && error.message ? error.message : 'وضعیت فضای ذخیره‌سازی دریافت نشد.'
+        };
     }
     updateTgStatus();
 }
@@ -1004,6 +1012,8 @@ on('saveTelegram', 'click', async () => {
 
         telegramStatus = {
             configured: true,
+            storageReady: true,
+            storageError: null,
             botUsername: SITE.telegram.botUsername,
             chatIdHint: `…${chatId.slice(-4)}`
         };

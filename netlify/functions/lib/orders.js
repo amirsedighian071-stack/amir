@@ -2,23 +2,18 @@
 // is only a local-development fallback; production uses a Netlify Blob store.
 const fs = require('fs');
 const path = require('path');
-const { isProductionRuntime } = require('./telegram-config');
+const {
+  createBlobStorageError,
+  getBlobStore,
+  isProductionRuntime
+} = require('./blob-store');
 
 const STORE_NAME = 'orders';
 const KEY = 'orders.json';
 const TMP_FILE = path.join('/tmp', KEY);
 
-async function getOrdersStore() {
-  try {
-    const { getStore } = require('@netlify/blobs');
-    return getStore(STORE_NAME);
-  } catch (error) {
-    return null;
-  }
-}
-
 async function loadOrders() {
-  const store = await getOrdersStore();
+  const { store } = getBlobStore(STORE_NAME);
   if (store) {
     try {
       const raw = await store.get(KEY);
@@ -27,9 +22,13 @@ async function loadOrders() {
         return Array.isArray(orders) ? orders : [];
       }
     } catch (error) {
-      // Fall back for local development.
+      if (isProductionRuntime()) {
+        console.error('[orders] خواندن سفارش‌ها از Netlify Blobs ناموفق بود:', error);
+      }
     }
   }
+
+  if (isProductionRuntime()) return [];
 
   try {
     const orders = JSON.parse(fs.readFileSync(TMP_FILE, 'utf8'));
@@ -41,24 +40,33 @@ async function loadOrders() {
 
 async function saveOrders(orders) {
   const safeOrders = Array.isArray(orders) ? orders : [];
-  const store = await getOrdersStore();
+  const { store, error: storeError } = getBlobStore(STORE_NAME);
+  let blobError = storeError;
+
   if (store) {
     try {
       await store.set(KEY, JSON.stringify(safeOrders));
       return safeOrders;
     } catch (error) {
-      // Fall back for local development. In production the fallback must not
-      // be used silently: /tmp disappears between invocations and orders
-      // placed by customers would vanish without any visible error.
-      if (isProductionRuntime()) {
-        throw new Error(
-          'سفارش در فضای دائمی Netlify Blobs ذخیره نشد؛ سایت را دوباره Deploy کنید یا اتصال Blobs را بررسی کنید'
-        );
-      }
+      blobError = error;
     }
   }
 
-  fs.writeFileSync(TMP_FILE, JSON.stringify(safeOrders, null, 2));
+  if (isProductionRuntime()) {
+    const storageError = createBlobStorageError(
+      'سفارش در فضای دائمی Netlify Blobs ذخیره نشد',
+      blobError
+    );
+    console.error('[orders] خطا در ذخیره سفارش‌ها:', storageError);
+    throw storageError;
+  }
+
+  try {
+    fs.writeFileSync(TMP_FILE, JSON.stringify(safeOrders, null, 2));
+  } catch (error) {
+    console.error('[orders] خطا در ذخیره سفارش‌ها در محیط محلی:', error);
+    throw error;
+  }
   return safeOrders;
 }
 
