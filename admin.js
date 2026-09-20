@@ -1107,7 +1107,7 @@ function initDashboard() {
     // Simple list editors
     simpleEditor({
         tableId:'projectsTable', dataKey:'projects',
-        fields:[{key:'title',label:'عنوان'},{key:'tag',label:'برچسب'},{key:'desc',label:'توضیح',type:'textarea'},{key:'tech',label:'تکنولوژی‌ها (با کاما جدا کنید)'}],
+        fields:[{key:'title',label:'عنوان'},{key:'tag',label:'برچسب'},{key:'desc',label:'توضیح کوتاه',type:'textarea'},{key:'tech',label:'تکنولوژی‌ها (با کاما جدا کنید)'},{key:'longDescription',label:'توضیحات بیشتر (نمایش در مودال جزئیات)',type:'textarea'}],
         addBtnId:'addProjectBtn',
         withImage:true, imageLabel:'عکس نمونه‌کار', imagePlaceholder:'fas fa-briefcase',
         onChange: notifySiteUpdated
