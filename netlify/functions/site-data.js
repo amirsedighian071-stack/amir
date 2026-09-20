@@ -1,41 +1,68 @@
-// Netlify Function: shared site data store (read by everyone, written by admin)
-// Uses Netlify Blobs when available, falls back to /tmp for local dev.
+// Netlify Function: shared site data store (read by everyone, written by admin).
+// Uses Netlify Blobs in production and /tmp only during local development.
 const fs = require('fs');
 const path = require('path');
+const {
+  createBlobStorageError,
+  getBlobStore,
+  isProductionRuntime
+} = require('./lib/blob-store');
 
 const TMP_FILE = path.join('/tmp', 'site-data.json');
 const STORE_NAME = 'site';
 const KEY = 'site-data.json';
 
-async function getStore() {
-  try {
-    const { getStore } = require('@netlify/blobs');
-    return getStore(STORE_NAME);
-  } catch (e) {
-    return null;
-  }
-}
-
 async function readData() {
-  const store = await getStore();
+  const { store } = getBlobStore(STORE_NAME);
   if (store) {
     try {
       const raw = await store.get(KEY);
       if (raw) return JSON.parse(raw);
-    } catch (e) { /* fall through */ }
+    } catch (error) {
+      if (isProductionRuntime()) {
+        console.error('[site-data] خواندن اطلاعات سایت از Netlify Blobs ناموفق بود:', error);
+      }
+    }
   }
-  try { return JSON.parse(fs.readFileSync(TMP_FILE, 'utf8')); } catch (e) { return null; }
+
+  if (isProductionRuntime()) return null;
+
+  try {
+    return JSON.parse(fs.readFileSync(TMP_FILE, 'utf8'));
+  } catch (error) {
+    return null;
+  }
 }
 
 async function writeData(data) {
-  const store = await getStore();
+  const { store, error: storeError } = getBlobStore(STORE_NAME);
+  let blobError = storeError;
+
   if (store) {
     try {
       await store.set(KEY, JSON.stringify(data));
       return true;
-    } catch (e) { /* fall through */ }
+    } catch (error) {
+      blobError = error;
+    }
   }
-  try { fs.writeFileSync(TMP_FILE, JSON.stringify(data)); return true; } catch (e) { return false; }
+
+  if (isProductionRuntime()) {
+    const storageError = createBlobStorageError(
+      'اطلاعات سایت در فضای دائمی Netlify Blobs ذخیره نشد',
+      blobError
+    );
+    console.error('[site-data] خطا در ذخیره اطلاعات سایت:', storageError);
+    throw storageError;
+  }
+
+  try {
+    fs.writeFileSync(TMP_FILE, JSON.stringify(data));
+    return true;
+  } catch (error) {
+    console.error('[site-data] خطا در ذخیره اطلاعات سایت در محیط محلی:', error);
+    return false;
+  }
 }
 
 exports.handler = async (event) => {
@@ -59,8 +86,14 @@ exports.handler = async (event) => {
   }
 
   if (event.httpMethod === 'POST' || event.httpMethod === 'PUT') {
+    let body;
     try {
-      const body = JSON.parse(event.body || '{}');
+      body = JSON.parse(event.body || '{}');
+    } catch (error) {
+      return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: String(error && error.message || error) }) };
+    }
+
+    try {
       const incoming = body.data || body;
       if (!incoming || typeof incoming !== 'object') {
         return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'invalid payload' }) };
@@ -72,10 +105,19 @@ exports.handler = async (event) => {
         headers,
         body: JSON.stringify({ ok, updatedAt: incoming._updatedAt })
       };
-    } catch (e) {
-      return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: String(e && e.message || e) }) };
+    } catch (error) {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ ok: false, error: String(error && error.message || error) })
+      };
     }
   }
 
   return { statusCode: 405, headers, body: JSON.stringify({ ok: false, error: 'Method not allowed' }) };
 };
+
+// Exporting these keeps the storage behavior easy to exercise without changing
+// the Netlify Functions handler contract.
+exports.readData = readData;
+exports.writeData = writeData;
