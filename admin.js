@@ -32,6 +32,18 @@ function on(id, evt, handler) {
     return el;
 }
 function byId(id) { return document.getElementById(id); }
+function escapeHTML(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+function telegramUsername(value) {
+    const username = String(value || '').trim().replace(/^@+/, '');
+    return /^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(username) ? username : '';
+}
 
 // Push the current data to the shared store and refresh any open site tabs.
 function notifySiteUpdated() {
@@ -656,18 +668,69 @@ function setupPhoto(inputId, clearId, key) {
 setupPhoto('heroPhotoInput','heroPhotoClear','heroPhoto');
 setupPhoto('aboutPhotoInput','aboutPhotoClear','aboutPhoto');
 
-// About texts save
+// About page editor
+const ABOUT_TEXT_KEYS = [
+    'about_title', 'about_subtitle', 'about_name', 'about_intro', 'about_years',
+    'about_block1_title', 'about_block1_desc',
+    'about_block2_title', 'about_block2_desc',
+    'about_block3_title', 'about_block3_desc',
+    'skills_title', 'whyme_title', 'whyme_subtitle'
+];
+
+function updateAboutFieldCounter(input) {
+    const counter = document.querySelector(`[data-count-for="${input.id}"]`);
+    if (!counter) return;
+    counter.textContent = `${toPersianNum(input.value.length)} / ${toPersianNum(input.maxLength || '∞')}`;
+}
+
 function loadAboutTexts() {
-    const ids = ['about_name','about_intro','about_years','about_block1_title','about_block1_desc','about_block2_title','about_block2_desc','about_block3_title','about_block3_desc'];
-    ids.forEach(id => {
+    const saveState = byId('aboutSaveState');
+    // The background sync runs every few seconds; never overwrite text the
+    // admin is actively editing before they press save.
+    if (saveState && saveState.classList.contains('is-dirty')) return;
+    ABOUT_TEXT_KEYS.forEach(id => {
         const el = document.getElementById('t_'+id);
-        if (el) el.value = SITE.texts[id] || '';
+        if (!el) return;
+        el.value = SITE.texts[id] || '';
+        updateAboutFieldCounter(el);
+        if (!el.dataset.aboutCounterReady) {
+            el.dataset.aboutCounterReady = 'true';
+            el.addEventListener('input', () => {
+                updateAboutFieldCounter(el);
+                el.classList.remove('about-field-invalid');
+                const state = byId('aboutSaveState');
+                if (state) {
+                    state.className = 'is-dirty';
+                    state.innerHTML = '<i class="fas fa-pen"></i> تغییر ذخیره‌نشده دارید.';
+                }
+            });
+        }
     });
 }
 on('saveAboutTexts', 'click', () => {
-    const ids = ['about_name','about_intro','about_years','about_block1_title','about_block1_desc','about_block2_title','about_block2_desc','about_block3_title','about_block3_desc'];
-    ids.forEach(id => { SITE.texts[id] = document.getElementById('t_'+id).value; });
-    saveData(); markSync('saving'); showAdminToast('تغییرات درباره من ذخیره و روی سایت اعمال شد.');
+    const fields = ABOUT_TEXT_KEYS
+        .map(id => ({ id, el: document.getElementById('t_'+id) }))
+        .filter(item => item.el);
+    const emptyRequired = fields.find(item => item.el.hasAttribute('data-about-required') && !item.el.value.trim());
+    if (emptyRequired) {
+        emptyRequired.el.classList.add('about-field-invalid');
+        emptyRequired.el.focus();
+        const state = byId('aboutSaveState');
+        if (state) {
+            state.className = 'is-error';
+            state.innerHTML = '<i class="fas fa-circle-exclamation"></i> لطفاً همه فیلدهای ضروری را تکمیل کنید.';
+        }
+        return;
+    }
+    fields.forEach(({id, el}) => { SITE.texts[id] = el.value.trim(); });
+    saveData();
+    markSync('saving');
+    const state = byId('aboutSaveState');
+    if (state) {
+        state.className = 'is-saved';
+        state.innerHTML = '<i class="fas fa-circle-check"></i> صفحه درباره من ذخیره و منتشر شد.';
+    }
+    showAdminToast('تغییرات درباره من ذخیره و روی سایت اعمال شد.');
 });
 
 // ---- All texts editor
@@ -801,33 +864,40 @@ function renderOrders() {
     countEl.textContent = toPersianNum(orders.length);
     countEl.style.display = orders.length ? 'inline-block' : 'none';
     if (!orders.length) { list.innerHTML = '<div class="empty">هنوز سفارشی ثبت نشده است.</div>'; return; }
-    list.innerHTML = orders.map(o => `
-        <div class="msg-card ${o.sent?'':'unread'}">
+    list.innerHTML = orders.map(o => {
+        const tg = telegramUsername(o.customerUsername || o.telegramId);
+        const safeId = escapeHTML(o.id);
+        const safePhone = escapeHTML(o.phone);
+        const items = Array.isArray(o.items) ? o.items : [];
+        return `
+        <div class="msg-card ${o.sent?'':'unread'} order-admin-card">
             <div class="msg-head">
-                <span class="msg-name"><i class="fas fa-file-invoice"></i> ${o.id}</span>
+                <span class="msg-name"><i class="fas fa-file-invoice"></i> ${safeId}</span>
                 <span class="msg-date"><i class="far fa-clock"></i> ${fmtDate(o.date)}</span>
             </div>
             <div class="msg-meta">
-                <span><i class="fas fa-user"></i> ${o.name}</span>
-                <span><i class="fas fa-phone"></i> ${o.phone}</span>
-                ${o.email?`<span><i class="fas fa-envelope"></i> ${o.email}</span>`:''}
-                <span style="color:${o.sent?'var(--success)':'var(--warning)'};font-weight:600;"><i class="fas fa-${o.sent?'check-circle':'exclamation-triangle'}"></i> ${o.sent?'ارسال به تلگرام':'ذخیره محلی'}</span>
+                <span><i class="fas fa-user"></i> ${escapeHTML(o.name)}</span>
+                <span><i class="fas fa-phone"></i> ${safePhone}</span>
+                ${tg ? `<a href="https://t.me/${tg}" target="_blank" rel="noopener"><i class="fab fa-telegram"></i> @${tg}</a>` : '<span><i class="fab fa-telegram"></i> آیدی ثبت نشده</span>'}
+                ${o.email?`<span><i class="fas fa-envelope"></i> ${escapeHTML(o.email)}</span>`:''}
+                <span style="color:${o.sent?'var(--success)':'var(--warning)'};font-weight:600;"><i class="fas fa-${o.sent?'check-circle':'exclamation-triangle'}"></i> ${o.sent?'ارسال به ربات':'ثبت قدیمی/محلی'}</span>
             </div>
             <div class="msg-body">
                 <strong>اقلام:</strong><br>
-                ${o.items.map(it => `• ${it.name} × ${toPersianNum(it.qty)} = ${formatPrice(it.price*it.qty)} تومان`).join('<br>')}
+                ${items.map(it => `• ${escapeHTML(it.name)} × ${toPersianNum(it.qty)} = ${formatPrice(it.price*it.qty)} تومان`).join('<br>')}
                 <br><br><strong>جمع کل: ${formatPrice(o.total)} تومان</strong>
-                ${o.note?`<br><br><strong>یادداشت:</strong> ${o.note}`:''}
+                ${o.note?`<br><br><strong>یادداشت:</strong> ${escapeHTML(o.note)}`:''}
             </div>
-            <div style="margin-top:0.5rem;display:flex;gap:0.3rem;flex-wrap:wrap;">
-                <a href="https://t.me/${(o.phone||'').replace(/^0/,'')}" target="_blank" class="btn btn-primary btn-sm"><i class="fab fa-telegram"></i> تماس با مشتری</a>
-                ${o.phone?`<a href="tel:${o.phone}" class="btn btn-outline btn-sm"><i class="fas fa-phone"></i> تماس تلفنی</a>`:''}
-                <button class="btn btn-danger btn-sm" data-del-ord="${o.id}"><i class="fas fa-trash"></i></button>
+            <div class="order-admin-actions">
+                ${tg ? `<a href="https://t.me/${tg}" target="_blank" rel="noopener" class="btn btn-primary btn-sm"><i class="fab fa-telegram"></i> ارتباط با @${tg}</a>` : ''}
+                ${o.phone?`<a href="tel:${safePhone}" class="btn btn-outline btn-sm"><i class="fas fa-phone"></i> تماس تلفنی</a>`:''}
+                <button class="btn btn-danger btn-sm" data-del-ord="${safeId}" aria-label="حذف سفارش"><i class="fas fa-trash"></i></button>
             </div>
-        </div>`).join('');
+        </div>`;
+    }).join('');
     list.querySelectorAll('[data-del-ord]').forEach(b => b.addEventListener('click', () => {
         if (!confirm('حذف این سفارش؟')) return;
-        SITE.orders = SITE.orders.filter(x => x.id !== b.dataset.delOrd);
+        SITE.orders = SITE.orders.filter(x => String(x.id) !== b.dataset.delOrd);
         saveData(); renderOrders();
     }));
 }
@@ -867,7 +937,10 @@ async function refreshTelegramStatus() {
         const data = await response.json();
         if (data && data.ok) {
             telegramStatus = data;
-            if (data.botUsername && !byId('tgBotUsername').value) byId('tgBotUsername').value = data.botUsername;
+            if (data.botUsername) {
+                byId('tgBotUsername').value = data.botUsername;
+                SITE.telegram.botUsername = data.botUsername;
+            }
         }
     } catch (error) {
         // Keep the old local indicator as a graceful fallback in static previews.
@@ -890,7 +963,8 @@ function loadTelegramSettings() {
 on('saveTelegram', 'click', async () => {
     const token = byId('tgToken').value.trim();
     const chatId = byId('tgChatId').value.trim();
-    const botUsername = byId('tgBotUsername').value.trim().replace(/^@+/, '');
+    // The server obtains the username from getMe using this exact token, so a
+    // manually entered destination can never redirect customers elsewhere.
     const cardNumber = byId('tgCard').value.trim();
     const cardHolder = byId('tgCardHolder').value.trim();
 
@@ -911,14 +985,14 @@ on('saveTelegram', 'click', async () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 admin: { username: SITE.auth.username, password: SITE.auth.password },
-                config: { botToken: token, chatId, botUsername, cardNumber, cardHolder }
+                config: { botToken: token, chatId, cardNumber, cardHolder }
             })
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data.ok) throw new Error(data.error || 'ذخیره تنظیمات ناموفق بود.');
 
         // Never put credentials into localStorage or shared site data again.
-        SITE.telegram.botUsername = data.botUsername || botUsername;
+        SITE.telegram.botUsername = data.botUsername || '';
         SITE.telegram.cardNumber = cardNumber;
         SITE.telegram.cardHolder = cardHolder;
         delete SITE.telegram.botToken;
@@ -926,6 +1000,7 @@ on('saveTelegram', 'click', async () => {
         saveData();
         byId('tgToken').value = '';
         byId('tgChatId').value = '';
+        byId('tgBotUsername').value = SITE.telegram.botUsername;
 
         telegramStatus = {
             configured: true,

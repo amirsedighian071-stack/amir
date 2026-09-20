@@ -114,7 +114,13 @@ exports.handler = async (event) => {
 
     // Validate the token before storing anything.
     const bot = await telegramApi(config.botToken, 'getMe');
-    config.botUsername = config.botUsername || bot.username || '';
+    // Always derive the destination from the validated token. A manually typed
+    // username could point customers to another bot even though this token was
+    // the one webhooked by the panel.
+    config.botUsername = (bot && bot.username ? bot.username : '').replace(/^@+/, '');
+    if (!config.botUsername) {
+      throw new Error('نام کاربری ربات از تلگرام دریافت نشد.');
+    }
 
     const url = webhookUrl(event);
     if (url) {
