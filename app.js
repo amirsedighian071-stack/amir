@@ -154,8 +154,100 @@ function loadData() {
         });
     } catch(e) { return JSON.parse(JSON.stringify(DEFAULT_DATA)); }
 }
-function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(SITE)); }
+function saveData(opts) {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(SITE));
+    } catch (e) {
+        // Uploaded images are stored as base64 and can exceed the ~5MB quota.
+        // The server copy is still the source of truth, so don't break the UI.
+        console.warn('[site] localStorage write failed (quota?):', e && e.name);
+        if (typeof window !== 'undefined') window.__storageFull = true;
+    }
+    if (!opts || opts.push !== false) pushDataToServer();
+}
 const SITE = loadData();
+
+// ============== Remote (shared) data sync ==============
+// Everything the admin changes is pushed to a serverless store so that ALL
+// visitors of the site see the same content, not just the admin's browser.
+const SYNC_ENDPOINT = '/.netlify/functions/site-data';
+const SYNC_POLL_MS = 15000;
+let _pushTimer = null;
+let _lastRemoteStamp = 0;
+let _syncAvailable = true;
+
+function pushDataToServer() {
+    if (!_syncAvailable) { window.__syncOk = false; return; }
+    clearTimeout(_pushTimer);
+    _pushTimer = setTimeout(async () => {
+        try {
+            const payload = Object.assign({}, SITE);
+            const r = await fetch(SYNC_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data: payload })
+            });
+            if (!r.ok) { _syncAvailable = false; window.__syncOk = false; return; }
+            const j = await r.json();
+            if (j && j.updatedAt) _lastRemoteStamp = j.updatedAt;
+            window.__syncOk = true;
+        } catch (e) {
+            _syncAvailable = false;
+            window.__syncOk = false;
+        }
+    }, 400);
+}
+
+function mergeRemote(remote) {
+    if (!remote || typeof remote !== 'object') return false;
+    const stamp = remote._updatedAt || 0;
+    if (stamp && stamp <= _lastRemoteStamp) return false;
+    _lastRemoteStamp = stamp;
+    // Never let remote data overwrite local-only concerns (auth session/cart).
+    Object.keys(DEFAULT_DATA).forEach(k => {
+        if (remote[k] !== undefined) SITE[k] = remote[k];
+    });
+    SITE.texts = Object.assign({}, DEFAULT_DATA.texts, remote.texts || {});
+    SITE.visible = Object.assign({}, DEFAULT_DATA.visible, remote.visible || {});
+    SITE.telegram = Object.assign({}, DEFAULT_DATA.telegram, remote.telegram || {});
+    SITE.auth = Object.assign({}, DEFAULT_DATA.auth, remote.auth || {});
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(SITE)); } catch (e) { /* quota: server copy still wins */ }
+    return true;
+}
+
+async function fetchRemoteData() {
+    if (!_syncAvailable) return false;
+    try {
+        const r = await fetch(SYNC_ENDPOINT + '?t=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) { _syncAvailable = false; return false; }
+        const j = await r.json();
+        if (!j || !j.data) return false;
+        return mergeRemote(j.data);
+    } catch (e) {
+        _syncAvailable = false;
+        return false;
+    }
+}
+
+async function initSync(onUpdate) {
+    const changed = await fetchRemoteData();
+    if (changed && typeof onUpdate === 'function') onUpdate();
+    // If no remote copy exists yet, seed it with what we have.
+    if (_syncAvailable && !_lastRemoteStamp) pushDataToServer();
+    setInterval(async () => {
+        const c = await fetchRemoteData();
+        if (c && typeof onUpdate === 'function') onUpdate();
+    }, SYNC_POLL_MS);
+    // Instant sync between tabs on the same device.
+    window.addEventListener('storage', e => {
+        if (e.key !== STORAGE_KEY || !e.newValue) return;
+        try {
+            const d = JSON.parse(e.newValue);
+            Object.keys(DEFAULT_DATA).forEach(k => { if (d[k] !== undefined) SITE[k] = d[k]; });
+            if (typeof onUpdate === 'function') onUpdate();
+        } catch (err) { /* ignore */ }
+    });
+}
 
 function loadCart() {
     try { return JSON.parse(localStorage.getItem(CART_KEY) || '{}'); } catch(e) { return {}; }
@@ -241,7 +333,7 @@ function renderShop(container, opts={}) {
     html += `<div class="products-grid">${list.map(p=>`
         <div class="product-card" data-pid="${p.id}">
             ${badges[p.badge]||''}
-            <div class="product-image"><i class="${p.icon}"></i></div>
+            <div class="product-image${p.image?' has-photo':''}">${p.image?`<img src="${p.image}" alt="${p.name}" loading="lazy">`:`<i class="${p.icon}"></i>`}</div>
             <div class="product-body">
                 <div class="product-cat">${CAT_NAME_MAP[p.category]||''}</div>
                 <h3 class="product-title">${p.name}</h3>
@@ -281,7 +373,8 @@ function openProductDetail(pid) {
     const badges={hot:'داغ',new:'جدید',sale:'تخفیف'};
     const overlay = document.getElementById('productModal') || createProductModal();
     const icon = overlay.querySelector('.product-detail-icon');
-    icon.innerHTML = `${p.badge?`<span class="product-badge badge-${p.badge}">${badges[p.badge]}</span>`:''}<i class="${p.icon}"></i>`;
+    icon.classList.toggle('has-photo', !!p.image);
+    icon.innerHTML = `${p.badge?`<span class="product-badge badge-${p.badge}">${badges[p.badge]}</span>`:''}${p.image?`<img src="${p.image}" alt="${p.name}">`:`<i class="${p.icon}"></i>`}`;
     overlay.querySelector('.product-detail-cat').textContent = CAT_NAME_MAP[p.category]||'';
     overlay.querySelector('.product-detail-title').textContent = p.name;
     overlay.querySelector('.product-detail-desc').textContent = p.description||'';
@@ -422,7 +515,7 @@ function renderCartItems() {
     body.innerHTML = items.map(([pid,qty]) => {
         const p = getProduct(+pid); if(!p) return '';
         return `<div class="cart-item">
-            <div class="cart-item-icon"><i class="${p.icon}"></i></div>
+            <div class="cart-item-icon${p.image?' has-photo':''}">${p.image?`<img src="${p.image}" alt="${p.name}">`:`<i class="${p.icon}"></i>`}</div>
             <div class="cart-item-info">
                 <h4>${p.name}</h4>
                 <span>${toPersianNum(qty)} × ${formatPrice(p.price)} تومان</span>
@@ -585,27 +678,112 @@ function initContactForm() {
 function initCounters() {
     const counters=document.querySelectorAll('.stat-number'); if(!counters.length)return;
     const anim=el=>{const t=+el.getAttribute('data-target');let c=0;const s=t/50;const tk=()=>{c+=s;if(c<t){el.textContent=toPersianNum(Math.ceil(c));requestAnimationFrame(tk);}else el.textContent=toPersianNum(t);};tk();};
+    if (typeof IntersectionObserver === 'undefined') { counters.forEach(anim); return; }
     const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){anim(e.target);obs.unobserve(e.target);}});},{threshold:0.5});
     counters.forEach(c=>obs.observe(c));
 }
 function setYear() { const y=document.getElementById('currentYear'); if(y) y.textContent=toPersianNum(new Date().getFullYear()); }
 
+// ============== Section renderers shared by all pages ==============
+function renderFeaturesGrid() {
+    const fg = document.getElementById('featuresGrid');
+    if (!fg) return;
+    fg.innerHTML = SITE.features.map(f => `
+        <div class="feature-card">
+            <div class="feature-icon${f.image?' has-photo':''}">${f.image?`<img src="${f.image}" alt="${f.title}" loading="lazy">`:`<i class="${f.icon}"></i>`}</div>
+            <h3>${f.title}</h3>
+            <p>${f.desc}</p>
+        </div>`).join('');
+}
+function renderProjectsGrid() {
+    const grid = document.getElementById('projectsGrid');
+    if (!grid) return;
+    grid.innerHTML = SITE.projects.map(p => `
+        <div class="project-card">
+            <div class="project-image${p.image?' has-photo':''}">${p.image?`<img src="${p.image}" alt="${p.title}" loading="lazy">`:`<i class="${p.icon}"></i>`}</div>
+            <div class="project-content">
+                <span class="project-tag">${p.tag||''}</span>
+                <h3>${p.title||''}</h3>
+                <p>${p.desc||''}</p>
+                <div class="project-tech">${(p.tech||'').split(',').filter(t=>t.trim()).map(t=>`<span>${t.trim()}</span>`).join('')}</div>
+            </div>
+        </div>`).join('');
+}
+function renderSkillsGrid() {
+    const el = document.getElementById('skillsGrid');
+    if (!el) return;
+    el.innerHTML = SITE.skills.map(s => `<div class="skill-tag"><i class="${s.icon}"></i> ${s.name}</div>`).join('');
+}
+function renderWhymeGrid() {
+    const el = document.getElementById('whymeGrid');
+    if (!el) return;
+    el.innerHTML = SITE.whyme.map(w => `
+        <div class="feature-card">
+            <div class="feature-icon${w.image?' has-photo':''}">${w.image?`<img src="${w.image}" alt="${w.title}" loading="lazy">`:`<i class="${w.icon}"></i>`}</div>
+            <h3>${w.title}</h3>
+            <p>${w.desc}</p>
+        </div>`).join('');
+}
+function renderContactCards() {
+    const el = document.getElementById('contactInfo');
+    if (!el) return;
+    el.innerHTML = SITE.contactCards.map(c => `
+        <div class="contact-card">
+            <div class="contact-icon"><i class="${c.icon}"></i></div>
+            <div class="contact-detail">
+                <h4>${c.title}</h4>
+                ${c.url ? `<a href="${c.url}" ${c.url.startsWith('http')?'target="_blank"':''}>${c.value}</a>` : `<span>${c.value}</span>`}
+                ${c.hint?`<p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.3rem;">${c.hint}</p>`:''}
+            </div>
+        </div>`).join('');
+}
+function renderPhotos() {
+    const h = document.getElementById('heroAvatar');
+    if (h) {
+        h.innerHTML = SITE.heroPhoto
+            ? `<img src="${SITE.heroPhoto}" alt="avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+            : '<i class="fas fa-user"></i>';
+    }
+    const a = document.getElementById('aboutPhoto');
+    if (a) {
+        a.innerHTML = SITE.aboutPhoto
+            ? `<img src="${SITE.aboutPhoto}" alt="about" style="width:100%;height:100%;object-fit:cover;border-radius:1.5rem;">`
+            : '<i class="fas fa-user-tie"></i>';
+    }
+}
+function applyTexts() {
+    document.querySelectorAll('[data-text]').forEach(el => {
+        const k = el.getAttribute('data-text');
+        if (SITE.texts[k] !== undefined) el.textContent = SITE.texts[k];
+    });
+    document.querySelectorAll('[data-visible]').forEach(el => {
+        el.style.display = isVisible(el.getAttribute('data-visible')) ? '' : 'none';
+    });
+}
+// Re-render the entire public page from current SITE data.
+function renderSitePage() {
+    applyTexts();
+    renderPhotos();
+    renderSocials();
+    renderFeaturesGrid();
+    renderProjectsGrid();
+    renderSkillsGrid();
+    renderWhymeGrid();
+    renderContactCards();
+    refreshShopEverywhere();
+}
+
 window.SITE=SITE; window.saveData=saveData; window.CAT_NAME_MAP=CAT_NAME_MAP;
 window.refreshShopEverywhere=refreshShopEverywhere;
+window.renderSitePage=renderSitePage; window.initSync=initSync;
+window.fetchRemoteData=fetchRemoteData; window.pushDataToServer=pushDataToServer;
 
 document.addEventListener('DOMContentLoaded', () => {
-    initTheme(); initNavbar(); initCounters(); initContactForm(); setYear(); renderSocials(); createCartUI();
-    // Apply dynamic texts
-    document.querySelectorAll('[data-text]').forEach(el => { const k=el.getAttribute('data-text'); if(SITE.texts[k]!==undefined) el.textContent=SITE.texts[k]; });
-    document.querySelectorAll('[data-visible]').forEach(el => { if(!isVisible(el.getAttribute('data-visible'))) el.style.display='none'; });
-    // Hero photo
-    if (SITE.heroPhoto) {
-        const h = document.getElementById('heroAvatar');
-        if (h) h.innerHTML = `<img src="${SITE.heroPhoto}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+    // Each step is isolated so a single failure can never blank the whole page.
+    [initTheme, initNavbar, initCounters, initContactForm, setYear, createCartUI, renderSitePage]
+        .forEach(fn => { try { fn(); } catch (e) { console.error('[site] init failed:', fn.name, e); } });
+    // Keep every visitor in sync with the admin panel's latest changes.
+    if (!document.getElementById('adminPage')) {
+        initSync(() => { try { renderSitePage(); } catch (e) { console.error('[site] re-render failed', e); } });
     }
-    // Features on index
-    const fg = document.getElementById('featuresGrid');
-    if (fg) fg.innerHTML = SITE.features.map(f => `<div class="feature-card"><div class="feature-icon"><i class="${f.icon}"></i></div><h3>${f.title}</h3><p>${f.desc}</p></div>`).join('');
-    // Shop grids
-    refreshShopEverywhere();
 });

@@ -88,26 +88,5 @@
     </footer>
 
     <script src="app.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            document.querySelectorAll('[data-text]').forEach(el => {
-                const k = el.getAttribute('data-text');
-                if (SITE.texts[k] !== undefined) el.textContent = SITE.texts[k];
-            });
-            document.querySelectorAll('[data-visible]').forEach(el => {
-                if (!isVisible(el.getAttribute('data-visible'))) el.style.display = 'none';
-            });
-            // Contact cards
-            document.getElementById('contactInfo').innerHTML = SITE.contactCards.map(c => `
-                <div class="contact-card">
-                    <div class="contact-icon"><i class="${c.icon}"></i></div>
-                    <div class="contact-detail">
-                        <h4>${c.title}</h4>
-                        ${c.url ? `<a href="${c.url}" ${c.url.startsWith('http')?'target="_blank"':''}>${c.value}</a>` : `<span>${c.value}</span>`}
-                        <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.3rem;">${c.hint||''}</p>
-                    </div>
-                </div>`).join('');
-        });
-    </script>
 </body>
 </html>

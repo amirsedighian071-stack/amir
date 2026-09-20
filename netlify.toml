@@ -11,3 +11,8 @@
   for = "/*"
   [headers.values]
     Access-Control-Allow-Origin = "*"
+
+[[redirects]]
+  from = "/api/site-data"
+  to = "/.netlify/functions/site-data"
+  status = 200
