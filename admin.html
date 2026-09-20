@@ -101,6 +101,18 @@
         [data-theme="dark"] .sync-pill.ok { background: rgba(16,185,129,0.2); color: #86efac; }
         [data-theme="dark"] .sync-pill.warn { background: rgba(245,158,11,0.2); color: #fcd34d; }
         [data-theme="dark"] .sync-pill.err { background: rgba(239,68,68,0.2); color: #fca5a5; }
+        .sync-retry-btn { margin-inline-start: 0.4rem; padding: 0.1rem 0.6rem; border-radius: 100px; border: 1px solid currentColor; background: transparent; color: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
+        .sync-retry-btn:hover { opacity: 0.75; }
+        .storage-banner { display: none; margin-bottom: 1.25rem; padding: 0.9rem 1.1rem; border-radius: 0.75rem; background: #fee2e2; border: 1px solid #fecaca; color: #7f1d1d; }
+        .storage-banner.visible { display: block; }
+        [data-theme="dark"] .storage-banner { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.4); color: #fecaca; }
+        .storage-banner-text { display: flex; gap: 0.7rem; align-items: flex-start; }
+        .storage-banner-text > i { font-size: 1.25rem; margin-top: 0.15rem; }
+        .storage-banner-text > div { font-size: 0.85rem; line-height: 1.9; }
+        .storage-banner-text code { background: rgba(0,0,0,0.08); padding: 0.05rem 0.4rem; border-radius: 0.35rem; font-size: 0.78rem; direction: ltr; display: inline-block; }
+        [data-theme="dark"] .storage-banner-text code { background: rgba(255,255,255,0.12); }
+        .storage-banner-error { direction: ltr; text-align: left; font-size: 0.75rem; opacity: 0.85; word-break: break-all; margin-top: 0.3rem; }
+        .storage-banner-text .btn { align-self: flex-start; margin-top: 0.3rem; }
 
         /* ---------- Responsive admin panel ---------- */
         @media (max-width: 1024px) {
@@ -189,6 +201,18 @@
             <span class="sync-pill" id="syncStatus"><i class="fas fa-circle-notch fa-spin"></i> در حال بررسی همگام‌سازی…</span>
         </div>
 
+        <div id="storageBanner" class="storage-banner" role="alert">
+            <div class="storage-banner-text">
+                <i class="fas fa-exclamation-circle"></i>
+                <div>
+                    <b>تغییرات شما فعلاً فقط روی مرورگر خودتان ذخیره می‌شود</b> — فضای دائمی (Netlify Blobs) در دسترس نیست، بنابراین بازدیدکنندگان دیگر سایت تغییرات پنل را <u>نمی‌بینند</u>.
+                    برای رفع: ۱) در Netlify، <b>Site settings → General → Site details → API ID</b> را به‌عنوان مقدار متغیر <code>NETLIFY_BLOBS_SITE_ID</code> و ۲) یک <b>Personal access token</b> از مسیر <b>User settings → Applications</b> را به‌عنوان <code>NETLIFY_BLOBS_TOKEN</code> در <b>Site settings → Environment variables</b> (محیط Production) ذخیره کنید و سپس سایت را <b>Redeploy</b> کنید.
+                </div>
+                <div id="storageBannerError" class="storage-banner-error"></div>
+                <button id="storageBannerRetry" type="button" class="btn btn-outline btn-sm"><i class="fas fa-rotate"></i> بررسی دوباره</button>
+            </div>
+        </div>
+
         <!-- Tabs -->
         <div class="admin-tabs" id="adminTabs">
             <button class="admin-tab active" data-tab="shop"><i class="fas fa-shopping-cart"></i> فروشگاه</button>
@@ -275,6 +299,7 @@
                     <div class="form-group"><label>شماره کارت (برای پرداخت)</label><input type="text" id="tgCard" placeholder="6037-xxxx-xxxx-xxxx"></div>
                     <div class="form-group"><label>نام صاحب کارت</label><input type="text" id="tgCardHolder" placeholder="نام و نام خانوادگی"></div>
                 </div>
+                <div class="form-group"><label>آدرس سایت (اختیاری — برای دکمهٔ «وبسایت» ربات)</label><input type="text" id="tgSiteUrl" dir="ltr" placeholder="" style="text-align:left;"></div>
                 <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
                     <button class="btn btn-primary btn-sm" id="saveTelegram"><i class="fas fa-save"></i> ذخیره، تست و فعال‌سازی ربات</button>
                 </div>

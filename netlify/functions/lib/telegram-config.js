@@ -3,9 +3,9 @@
 const fs = require('fs');
 const path = require('path');
 const {
-  createBlobStorageError,
-  getBlobStore,
-  isProductionRuntime
+  isProductionRuntime,
+  openBlobStore,
+  productionPersistError
 } = require('./blob-store');
 
 const STORE_NAME = 'private-settings';
@@ -22,30 +22,23 @@ function normaliseTelegramConfig(value = {}) {
     chatId: clean(value.chatId),
     botUsername: clean(value.botUsername).replace(/^@+/, ''),
     cardNumber: clean(value.cardNumber),
-    cardHolder: clean(value.cardHolder)
+    cardHolder: clean(value.cardHolder),
+    siteUrl: clean(value.siteUrl)
   };
 }
 
-function getPrivateStore() {
-  return getBlobStore(STORE_NAME);
-}
-
-// Read the durable store when it is available. /tmp is intentionally limited
-// to local development because it can disappear between production invocations.
 async function readStoredTelegramConfig() {
-  const { store } = getPrivateStore();
+  const { store } = await openBlobStore(STORE_NAME);
   if (store) {
     try {
       const raw = await store.get(KEY);
       if (raw) return normaliseTelegramConfig(JSON.parse(raw));
     } catch (error) {
-      if (isProductionRuntime()) {
-        console.error('[telegram-config] خواندن تنظیمات از Netlify Blobs ناموفق بود:', error);
-      }
+      // Reads stay best-effort: local development and unavailable blob
+      // storage use the /tmp fallback below, and getTelegramConfig merges
+      // environment values. Save failures are the ones surfaced loudly.
     }
   }
-
-  if (isProductionRuntime()) return null;
 
   try {
     return normaliseTelegramConfig(JSON.parse(fs.readFileSync(TMP_FILE, 'utf8')));
@@ -56,33 +49,28 @@ async function readStoredTelegramConfig() {
 
 async function saveTelegramConfig(value) {
   const config = normaliseTelegramConfig(value);
-  const { store, error: storeError } = getPrivateStore();
-  let blobError = storeError;
-
+  const { store, error } = await openBlobStore(STORE_NAME);
+  let blobError = error;
   if (store) {
     try {
       await store.set(KEY, JSON.stringify(config));
       return config;
-    } catch (error) {
-      blobError = error;
+    } catch (setError) {
+      // Keep local Netlify dev usable when Blobs are unavailable, but never
+      // pretend a production save succeeded when it only went to ephemeral
+      // /tmp — the next order would see an empty configuration again.
+      blobError = setError;
     }
   }
 
   if (isProductionRuntime()) {
-    const storageError = createBlobStorageError(
-      'تنظیمات در فضای دائمی Netlify Blobs ذخیره نشد',
-      blobError
-    );
-    console.error('[telegram-config] خطا در ذخیره تنظیمات:', storageError);
-    throw storageError;
+    // Throws with the real reason (e.g. MissingBlobsEnvironmentError) inside
+    // the message and logs it via console.error, so the admin panel can show
+    // why persistent storage failed instead of a generic message.
+    throw productionPersistError('تنظیمات در فضای دائمی Netlify Blobs ذخیره نشد', blobError);
   }
 
-  try {
-    fs.writeFileSync(TMP_FILE, JSON.stringify(config, null, 2));
-  } catch (error) {
-    console.error('[telegram-config] خطا در ذخیره تنظیمات محلی:', error);
-    throw error;
-  }
+  fs.writeFileSync(TMP_FILE, JSON.stringify(config, null, 2));
   return config;
 }
 
@@ -106,7 +94,8 @@ async function getTelegramConfig() {
     chatId: (saved && saved.chatId) || fallback.chatId,
     botUsername: (saved && saved.botUsername) || fallback.botUsername,
     cardNumber: (saved && saved.cardNumber) || fallback.cardNumber,
-    cardHolder: (saved && saved.cardHolder) || fallback.cardHolder
+    cardHolder: (saved && saved.cardHolder) || fallback.cardHolder,
+    siteUrl: (saved && saved.siteUrl) || fallback.siteUrl
   });
 }
 
