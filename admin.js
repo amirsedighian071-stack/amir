@@ -921,16 +921,24 @@ function telegramMessage(type, text) {
 function updateTgStatus(status = telegramStatus) {
     const box = byId('tgStatus');
     if (!box) return;
-    if (status && status.storageReady === false) {
-        const reason = status.storageError ? `<div style="margin-top:0.35rem;color:var(--text-secondary);font-size:0.78rem;direction:ltr;text-align:left;">${escapeHTML(status.storageError)}</div>` : '';
-        box.innerHTML = `<span style="color:var(--danger);"><i class="fas fa-times-circle"></i> اتصال فضای دائمی Netlify Blobs برقرار نیست.</span><div style="margin-top:0.35rem;color:var(--danger);font-size:0.82rem;">متغیرهای NETLIFY_BLOBS_SITE_ID و NETLIFY_BLOBS_TOKEN را تنظیم کنید و سایت را دوباره Deploy کنید.</div>${reason}`;
-    } else if (status && status.configured) {
+    let html;
+    if (status && status.configured) {
         const bot = status.botUsername ? ` برای @${status.botUsername}` : '';
         const chat = status.chatIdHint ? ` (چت ${status.chatIdHint})` : '';
-        box.innerHTML = `<span style="color:var(--success);"><i class="fas fa-check-circle"></i> ربات${bot} پیکربندی شده است${chat}.</span><div style="margin-top:0.35rem;color:var(--text-secondary);font-size:0.8rem;">توکن به‌صورت امن روی سرور نگهداری می‌شود و نمایش داده نمی‌شود.</div>`;
+        html = `<span style="color:var(--success);"><i class="fas fa-check-circle"></i> ربات${bot} پیکربندی شده است${chat}.</span><div style="margin-top:0.35rem;color:var(--text-secondary);font-size:0.8rem;">توکن به‌صورت امن روی سرور نگهداری می‌شود و نمایش داده نمی‌شود.</div>`;
     } else {
-        box.innerHTML = `<span style="color:var(--warning);"><i class="fas fa-exclamation-triangle"></i> هنوز پیکربندی نشده است</span>`;
+        html = `<span style="color:var(--warning);"><i class="fas fa-exclamation-triangle"></i> هنوز پیکربندی نشده است</span>`;
     }
+    // The server reports storageReady from a Netlify Blobs round-trip probe.
+    // Without persistent storage every save is lost between invocations, so
+    // warn loudly (red) and point the admin at the two required env vars.
+    if (status && status.storageReady === false) {
+        const reason = status.storageError
+            ? `<div style="margin-top:0.25rem;font-size:0.75rem;color:var(--text-secondary);">دلیل خطا: ${escapeHTML(status.storageError)}</div>`
+            : '';
+        html += `<div style="margin-top:0.5rem;color:var(--danger);font-size:0.85rem;line-height:1.8;"><i class="fas fa-exclamation-circle"></i> <b>اتصال فضای دائمی (Netlify Blobs) برقرار نیست</b>؛ تنظیمات و سفارش‌ها بین درخواست‌ها حفظ نمی‌شوند. متغیرهای محیطی <code>NETLIFY_BLOBS_SITE_ID</code> و <code>NETLIFY_BLOBS_TOKEN</code> را در Netlify تنظیم کنید و سپس سایت را دوباره Deploy کنید (راهنمای کامل در بخش «رفع عیب» README).${reason}</div>`;
+    }
+    box.innerHTML = html;
 }
 
 async function refreshTelegramStatus() {
@@ -946,13 +954,8 @@ async function refreshTelegramStatus() {
             }
         }
     } catch (error) {
-        // Keep a visible warning in static previews instead of implying that
-        // credentials are durable when the settings function is unavailable.
-        telegramStatus = {
-            configured: Boolean(SITE.telegram.botToken && SITE.telegram.chatId),
-            storageReady: false,
-            storageError: error && error.message ? error.message : 'وضعیت فضای ذخیره‌سازی دریافت نشد.'
-        };
+        // Keep the old local indicator as a graceful fallback in static previews.
+        telegramStatus = { configured: Boolean(SITE.telegram.botToken && SITE.telegram.chatId) };
     }
     updateTgStatus();
 }
@@ -1012,16 +1015,21 @@ on('saveTelegram', 'click', async () => {
 
         telegramStatus = {
             configured: true,
-            storageReady: true,
-            storageError: null,
             botUsername: SITE.telegram.botUsername,
-            chatIdHint: `…${chatId.slice(-4)}`
+            chatIdHint: `…${chatId.slice(-4)}`,
+            // The server verified the save with a round-trip read, so the
+            // persistent storage is confirmed working for this save.
+            storageReady: true,
+            storageError: null
         };
         updateTgStatus();
         telegramMessage('success', `✓ ${data.message || 'پیام تست ارسال و تنظیمات ذخیره شد.'}`);
         showAdminToast('ربات تلگرام با موفقیت تنظیم شد.');
     } catch (error) {
         telegramMessage('error', `خطا: ${error.message || 'ارتباط با سرور ناموفق بود.'}`);
+        // Refresh the storage indicator: if the save failed because Netlify
+        // Blobs is unreachable, the red warning must appear right away.
+        refreshTelegramStatus();
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-save"></i> ذخیره، تست و فعال‌سازی ربات';
