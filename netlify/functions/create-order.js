@@ -52,6 +52,18 @@ function deepLink(botUsername, orderId) {
   return `https://t.me/${botUsername}?start=${param}`;
 }
 
+// Same builder as telegram-settings.js: the public URL of this site's bot
+// function, derived from the request that is currently placing the order.
+// Returns null for local development where Telegram cannot reach the site.
+function webhookUrl(event) {
+  const incomingHeaders = event.headers || {};
+  const hostHeader = incomingHeaders['x-forwarded-host'] || incomingHeaders.host || '';
+  const host = String(hostHeader).split(',')[0].trim();
+  if (!host || /^(localhost|127\.0\.0\.1)(:|$)/i.test(host)) return null;
+  const protocol = (incomingHeaders['x-forwarded-proto'] || 'https').split(',')[0].trim();
+  return `${protocol}://${host}/.netlify/functions/telegram-bot`;
+}
+
 exports.handler = async (event) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -81,6 +93,7 @@ exports.handler = async (event) => {
     // browser-supplied payload can never choose a different Telegram account.
     const telegram = await getTelegramConfig();
     if (!telegram.botToken || !telegram.chatId) {
+      console.log('Order blocked: no stored Telegram configuration (botToken/chatId missing).');
       return respond(503, {
         ok: false,
         error: 'ربات سفارش‌ها هنوز توسط ادمین فعال و وب‌هوک نشده است.'
@@ -88,32 +101,54 @@ exports.handler = async (event) => {
     }
 
     // Re-check Telegram at order time. This makes the validated token—not a
-    // stored/manual username—the only source for the customer destination and
-    // also prevents checkout when that bot no longer points to this webhook.
+    // stored/manual username—the only source for the customer destination.
     const [botInfo, webhookInfo] = await Promise.all([
       telegramApi(telegram.botToken, 'getMe', {}),
       telegramApi(telegram.botToken, 'getWebhookInfo', {})
     ]);
     const configuredBotUsername = normaliseTelegramUsername(botInfo && botInfo.username);
-    let registeredWebhook = null;
-    try {
-      registeredWebhook = new URL(webhookInfo && webhookInfo.url ? webhookInfo.url : '');
-    } catch (error) {
-      registeredWebhook = null;
-    }
-    const incomingHeaders = event.headers || {};
-    const requestHost = String(incomingHeaders['x-forwarded-host'] || incomingHeaders.host || '').split(',')[0].trim();
-    const isLocalRequest = /^(localhost|127\.0\.0\.1)(:|$)/i.test(requestHost);
-    const webhookMatchesSite = Boolean(
-      registeredWebhook &&
-      registeredWebhook.pathname === '/.netlify/functions/telegram-bot' &&
-      (!requestHost || isLocalRequest || registeredWebhook.host === requestHost)
-    );
-    if (!telegramUsernameIsValid(configuredBotUsername) || !webhookMatchesSite) {
+    if (!telegramUsernameIsValid(configuredBotUsername)) {
+      console.log('Order blocked: getMe did not return a valid bot username.');
       return respond(503, {
         ok: false,
-        error: 'وب‌هوک ربات سفارش‌ها فعال نیست؛ لطفاً ادمین تنظیمات تلگرام را دوباره ذخیره کند.'
+        error: 'ربات سفارش‌ها هنوز توسط ادمین فعال و وب‌هوک نشده است.'
       });
+    }
+
+    // The webhook must point at this site's telegram-bot function, otherwise
+    // the customer could be redirected to a bot that can never receive their
+    // payment receipt. The registered webhook legitimately drifts though —
+    // e.g. it was registered on the netlify.app subdomain while orders now
+    // arrive on the custom domain (or the inverse, or a stale deploy preview).
+    // Because the admin owns the bot (we hold its token), repair the webhook
+    // in place instead of rejecting every order, and only refuse the order
+    // when the repair itself fails. Local development skips this gate because
+    // Telegram cannot reach localhost anyway.
+    const desiredWebhookUrl = webhookUrl(event);
+    if (desiredWebhookUrl) {
+      let currentWebhookUrl = webhookInfo && webhookInfo.url ? webhookInfo.url : '';
+      if (currentWebhookUrl !== desiredWebhookUrl) {
+        console.log(`Webhook drift detected (${currentWebhookUrl || 'empty'} -> ${desiredWebhookUrl}); re-registering.`);
+        try {
+          await telegramApi(telegram.botToken, 'setWebhook', {
+            url: desiredWebhookUrl,
+            allowed_updates: ['message', 'callback_query'],
+            drop_pending_updates: false
+          });
+          const verified = await telegramApi(telegram.botToken, 'getWebhookInfo', {});
+          currentWebhookUrl = verified && verified.url ? verified.url : '';
+        } catch (webhookError) {
+          console.log('Webhook self-repair failed:', webhookError);
+          currentWebhookUrl = '';
+        }
+      }
+      if (currentWebhookUrl !== desiredWebhookUrl) {
+        console.log('Order blocked: webhook could not be pointed to this site.');
+        return respond(503, {
+          ok: false,
+          error: 'وب‌هوک ربات سفارش‌ها فعال نیست؛ لطفاً ادمین تنظیمات تلگرام را دوباره ذخیره کند.'
+        });
+      }
     }
 
     const items = rawItems.slice(0, 50).map((item, index) => ({

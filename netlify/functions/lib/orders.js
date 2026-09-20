@@ -2,6 +2,7 @@
 // is only a local-development fallback; production uses a Netlify Blob store.
 const fs = require('fs');
 const path = require('path');
+const { isProductionRuntime } = require('./telegram-config');
 
 const STORE_NAME = 'orders';
 const KEY = 'orders.json';
@@ -46,7 +47,14 @@ async function saveOrders(orders) {
       await store.set(KEY, JSON.stringify(safeOrders));
       return safeOrders;
     } catch (error) {
-      // Fall back for local development.
+      // Fall back for local development. In production the fallback must not
+      // be used silently: /tmp disappears between invocations and orders
+      // placed by customers would vanish without any visible error.
+      if (isProductionRuntime()) {
+        throw new Error(
+          'سفارش در فضای دائمی Netlify Blobs ذخیره نشد؛ سایت را دوباره Deploy کنید یا اتصال Blobs را بررسی کنید'
+        );
+      }
     }
   }
 
