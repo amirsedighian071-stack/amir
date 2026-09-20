@@ -122,32 +122,5 @@
     </footer>
 
     <script src="app.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            document.querySelectorAll('[data-text]').forEach(el => {
-                const k = el.getAttribute('data-text');
-                if (SITE.texts[k] !== undefined) el.textContent = SITE.texts[k];
-            });
-            document.querySelectorAll('[data-visible]').forEach(el => {
-                if (!isVisible(el.getAttribute('data-visible'))) el.style.display = 'none';
-            });
-            // About photo
-            if (SITE.aboutPhoto) {
-                const p = document.getElementById('aboutPhoto');
-                p.innerHTML = `<img src="${SITE.aboutPhoto}" alt="about" style="width:100%;height:100%;object-fit:cover;border-radius:1.5rem;">`;
-            }
-            // Skills
-            document.getElementById('skillsGrid').innerHTML = SITE.skills.map(s =>
-                `<div class="skill-tag"><i class="${s.icon}"></i> ${s.name}</div>`
-            ).join('');
-            // Why me
-            document.getElementById('whymeGrid').innerHTML = SITE.whyme.map(w => `
-                <div class="feature-card">
-                    <div class="feature-icon"><i class="${w.icon}"></i></div>
-                    <h3>${w.title}</h3>
-                    <p>${w.desc}</p>
-                </div>`).join('');
-        });
-    </script>
 </body>
 </html>

@@ -135,36 +135,5 @@
     </footer>
 
     <script src="app.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Apply dynamic texts
-            document.querySelectorAll('[data-text]').forEach(el => {
-                const key = el.getAttribute('data-text');
-                if (SITE.texts[key] !== undefined) el.textContent = SITE.texts[key];
-            });
-            // Brand text with icon (preserve the <i> before text)
-            // Visibility
-            document.querySelectorAll('[data-visible]').forEach(el => {
-                if (!isVisible(el.getAttribute('data-visible'))) el.style.display = 'none';
-            });
-            // Hero photo
-            if (SITE.heroPhoto) {
-                const h = document.getElementById('heroAvatar');
-                h.innerHTML = `<img src="${SITE.heroPhoto}" alt="avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
-            }
-            // Features grid
-            const fg = document.getElementById('featuresGrid');
-            if (fg) {
-                fg.innerHTML = SITE.features.map(f => `
-                    <div class="feature-card">
-                        <div class="feature-icon"><i class="${f.icon}"></i></div>
-                        <h3>${f.title}</h3>
-                        <p>${f.desc}</p>
-                    </div>`).join('');
-            }
-            // Shop preview
-            refreshShopEverywhere();
-        });
-    </script>
 </body>
 </html>

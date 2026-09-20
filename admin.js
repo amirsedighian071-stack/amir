@@ -21,6 +21,60 @@ const ICON_SET = [
     'fas fa-map-marker-alt','fab fa-instagram-square','fab fa-telegram-plane','fab fa-whatsapp-square'
 ];
 
+// ---- Safe DOM helpers -------------------------------------------------
+// A single missing element used to throw and abort the rest of this file,
+// which silently killed every listener registered below it (that is why the
+// "add social"/"add contact" buttons and the photo uploads did nothing).
+function on(id, evt, handler) {
+    const el = typeof id === 'string' ? document.getElementById(id) : id;
+    if (!el) { console.warn('[admin] missing element:', id); return null; }
+    el.addEventListener(evt, handler);
+    return el;
+}
+function byId(id) { return document.getElementById(id); }
+
+// Push the current data to the shared store and refresh any open site tabs.
+function notifySiteUpdated() {
+    if (typeof pushDataToServer === 'function') pushDataToServer();
+    markSync('saving');
+}
+
+// ---- Sync status pill + toast ----
+let _syncTimer = null;
+function markSync(state) {
+    const el = byId('syncStatus');
+    if (!el) return;
+    clearTimeout(_syncTimer);
+    if (state === 'saving') {
+        el.className = 'sync-pill';
+        el.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> در حال ذخیره روی سرور…';
+        // The push is debounced in app.js; report the outcome shortly after.
+        _syncTimer = setTimeout(() => markSync(window.__syncOk === false ? 'local' : 'ok'), 1400);
+    } else if (state === 'ok') {
+        el.className = 'sync-pill ok';
+        el.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> ذخیره شد – برای همه بازدیدکنندگان اعمال شد';
+    } else if (state === 'local') {
+        el.className = 'sync-pill warn';
+        el.innerHTML = '<i class="fas fa-exclamation-triangle"></i> فقط روی این مرورگر ذخیره شد (سرور در دسترس نیست)';
+    } else if (state === 'err') {
+        el.className = 'sync-pill err';
+        el.innerHTML = '<i class="fas fa-times-circle"></i> خطا در همگام‌سازی';
+    }
+}
+function showAdminToast(text) {
+    let t = byId('adminToast');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'adminToast';
+        t.style.cssText = 'position:fixed;bottom:1.25rem;left:50%;transform:translateX(-50%) translateY(200%);background:var(--primary);color:#fff;padding:0.7rem 1.2rem;border-radius:100px;font-size:0.85rem;font-weight:600;z-index:99999;transition:transform .3s;box-shadow:0 8px 24px rgba(0,0,0,.2);max-width:90vw;text-align:center;';
+        document.body.appendChild(t);
+    }
+    t.textContent = text;
+    requestAnimationFrame(() => { t.style.transform = 'translateX(-50%) translateY(0)'; });
+    clearTimeout(t._h);
+    t._h = setTimeout(() => { t.style.transform = 'translateX(-50%) translateY(200%)'; }, 2500);
+}
+
 // ---- Theme
 (function initTheme() {
     const btn = document.getElementById('themeToggle');
@@ -51,7 +105,7 @@ function checkAuth() {
         logoutBtn.classList.add('hidden');
     }
 }
-loginForm.addEventListener('submit', e => {
+if (loginForm) loginForm.addEventListener('submit', e => {
     e.preventDefault();
     const u = document.getElementById('loginUser').value;
     const p = document.getElementById('loginPass').value;
@@ -64,7 +118,7 @@ loginForm.addEventListener('submit', e => {
         loginError.style.display = 'block';
     }
 });
-logoutBtn.addEventListener('click', () => { localStorage.removeItem(AUTH_KEY); checkAuth(); });
+if (logoutBtn) logoutBtn.addEventListener('click', () => { localStorage.removeItem(AUTH_KEY); checkAuth(); });
 
 // ---- Tabs
 document.querySelectorAll('.admin-tab').forEach(tab => {
@@ -81,6 +135,91 @@ function toPersianNum(n) { const p=['۰','۱','۲','۳','۴','۵','۶','۷','۸'
 function formatPrice(n) { return toPersianNum(Number(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,',')); }
 function fmtDate(iso) {
     try { const d = new Date(iso); return toPersianNum(d.toLocaleString('fa-IR')); } catch(e) { return iso; }
+}
+
+// ---- Reusable: Image handling (resize + compress to a data URL) ----
+const MAX_UPLOAD_BYTES = 3 * 1024 * 1024; // 3MB source limit
+function readImageFile(file, maxSide = 900, quality = 0.82) {
+    return new Promise((resolve, reject) => {
+        if (!file) return reject(new Error('فایلی انتخاب نشده است'));
+        if (!/^image\//.test(file.type)) return reject(new Error('فقط فایل تصویری مجاز است'));
+        if (file.size > MAX_UPLOAD_BYTES) return reject(new Error('حجم عکس باید کمتر از ۳ مگابایت باشد'));
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('خواندن فایل ناموفق بود'));
+        reader.onload = ev => {
+            const img = new Image();
+            img.onerror = () => reject(new Error('فایل تصویری معتبر نیست'));
+            img.onload = () => {
+                try {
+                    let { width: w, height: h } = img;
+                    const scale = Math.min(1, maxSide / Math.max(w, h));
+                    w = Math.max(1, Math.round(w * scale));
+                    h = Math.max(1, Math.round(h * scale));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w; canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+                    // PNG keeps transparency, everything else becomes JPEG for size.
+                    const type = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+                    resolve(canvas.toDataURL(type, quality));
+                } catch (err) { reject(new Error('پردازش عکس ناموفق بود')); }
+            };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+// Builds a reusable "choose image" widget. onChange(dataUrlOrEmpty) fires on pick/remove.
+function imageUploader(currentValue, onChange, opts = {}) {
+    const wrap = document.createElement('div');
+    wrap.className = 'img-uploader';
+    const placeholder = opts.placeholder || 'fas fa-image';
+    wrap.innerHTML = `
+        <div class="img-preview"></div>
+        <div class="img-btns">
+            <input type="file" accept="image/*" style="display:none;">
+            <button type="button" class="btn btn-primary btn-sm pick-img"><i class="fas fa-upload"></i> انتخاب عکس</button>
+            <button type="button" class="btn btn-outline btn-sm del-img"><i class="fas fa-trash"></i> حذف عکس</button>
+            <span class="img-note" style="font-size:0.72rem;color:var(--text-muted);">حداکثر ۳ مگابایت</span>
+        </div>`;
+    const preview = wrap.querySelector('.img-preview');
+    const input = wrap.querySelector('input[type=file]');
+    const note = wrap.querySelector('.img-note');
+    let value = currentValue || '';
+
+    function paint() {
+        preview.innerHTML = value ? `<img src="${value}" alt="preview">` : `<i class="${placeholder}"></i>`;
+        wrap.querySelector('.del-img').style.display = value ? '' : 'none';
+    }
+    paint();
+
+    wrap.querySelector('.pick-img').addEventListener('click', () => input.click());
+    wrap.querySelector('.del-img').addEventListener('click', () => {
+        value = ''; paint(); note.textContent = 'عکس حذف شد'; onChange('');
+    });
+    input.addEventListener('change', async e => {
+        const f = e.target.files && e.target.files[0];
+        if (!f) return;
+        note.textContent = 'در حال پردازش…';
+        try {
+            value = await readImageFile(f, opts.maxSide || 900, opts.quality || 0.82);
+            paint();
+            note.textContent = 'عکس آماده است';
+            onChange(value);
+        } catch (err) {
+            note.textContent = err.message;
+            alert(err.message);
+        }
+        input.value = '';
+    });
+    return wrap;
+}
+
+function thumbCell(imageUrl, iconClass) {
+    return imageUrl
+        ? `<img class="thumb" src="${imageUrl}" alt="">`
+        : `<div class="thumb-ph"><i class="${iconClass || 'fas fa-image'}"></i></div>`;
 }
 
 // ---- Reusable: Icon Picker
@@ -107,9 +246,9 @@ const modal = document.getElementById('modal');
 const modalTitle = document.getElementById('modalTitle');
 const modalBody = document.getElementById('modalBody');
 let modalSaveHandler = null;
-document.getElementById('modalCancel').addEventListener('click', () => modal.classList.remove('active'));
-modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
-document.getElementById('modalSave').addEventListener('click', () => { if (modalSaveHandler) modalSaveHandler(); });
+on('modalCancel', 'click', () => modal.classList.remove('active'));
+if (modal) modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
+on('modalSave', 'click', () => { if (modalSaveHandler) modalSaveHandler(); });
 function openModal(title, bodyEl, onSave) {
     modalTitle.textContent = title;
     modalBody.innerHTML = '';
@@ -128,7 +267,7 @@ function renderProducts() {
     tb.innerHTML = SITE.products.map((p,i) => `
         <tr>
             <td>${toPersianNum(i+1)}</td>
-            <td class="pi"><i class="${p.icon}"></i></td>
+            <td>${thumbCell(p.image, p.icon)}</td>
             <td><strong>${p.name}</strong></td>
             <td>${cats[p.category]||'-'}</td>
             <td>${formatPrice(p.price)}</td>
@@ -146,8 +285,11 @@ function renderProducts() {
         }
     }));
 }
+// Holds the image picked in the currently-open product modal.
+let currentProductImage = '';
 function productForm(product) {
-    const p = product || { id:0, name:'', category:'hosting', price:0, unit:'ماهانه', icon:'fas fa-box', badge:'', description:'', features:[] };
+    const p = product || { id:0, name:'', category:'hosting', price:0, unit:'ماهانه', icon:'fas fa-box', badge:'', description:'', features:[], image:'' };
+    currentProductImage = p.image || '';
     const form = document.createElement('div');
     form.innerHTML = `
         <div class="form-group"><label>نام محصول *</label><input type="text" id="m_pName" value="${p.name}"></div>
@@ -177,6 +319,11 @@ function productForm(product) {
             <div class="form-group"><label>واحد</label><input type="text" id="m_pUnit" value="${p.unit||'ماهانه'}"></div>
         </div>
         <div class="form-group">
+            <label>عکس محصول</label>
+            <div id="m_pImage"></div>
+            <div style="font-size:0.75rem;color:var(--text-muted);">اگر عکسی انتخاب نکنید، آیکون زیر نمایش داده می‌شود.</div>
+        </div>
+        <div class="form-group">
             <label>آیکون (انتخاب سریع)</label>
             <div id="m_pIconPicker"></div>
         </div>
@@ -189,6 +336,7 @@ function productForm(product) {
     setTimeout(() => {
         const picker = iconPicker(p.icon, (ic) => { form.querySelector('#m_pIcon').value = ic; });
         form.querySelector('#m_pIconPicker').appendChild(picker);
+        form.querySelector('#m_pImage').appendChild(imageUploader(currentProductImage, v => { currentProductImage = v; }, { placeholder:'fas fa-box-open' }));
         const featsBox = form.querySelector('#m_pFeats');
         (p.features||[]).forEach(f => addFeatRow(featsBox, f));
         form.querySelector('#m_pAddFeat').addEventListener('click', () => addFeatRow(featsBox, ''));
@@ -219,6 +367,7 @@ function saveProduct(id) {
         longDescription: modalBody.querySelector('#m_pLong') ? modalBody.querySelector('#m_pLong').value : '',
         price: parseInt(modalBody.querySelector('#m_pPrice').value) || 0,
         unit: modalBody.querySelector('#m_pUnit').value || 'ماهانه',
+        image: currentProductImage,
         features: Array.from(modalBody.querySelectorAll('.feat-input')).map(i => i.value.trim()).filter(Boolean)
     };
     if (id) {
@@ -226,13 +375,13 @@ function saveProduct(id) {
     } else {
         SITE.products.push(obj);
     }
-    saveData(); renderProducts(); refreshShopEverywhere(); closeModal();
+    saveData(); renderProducts(); refreshShopEverywhere(); closeModal(); markSync('saving'); showAdminToast('محصول ذخیره شد.');
 }
-document.getElementById('addProductBtn').addEventListener('click', () => openModal('محصول جدید', productForm(null), () => saveProduct(0)));
+on('addProductBtn', 'click', () => openModal('محصول جدید', productForm(null), () => saveProduct(0)));
 
 // Shop toggle
-document.getElementById('shopToggle').addEventListener('change', e => {
-    SITE.shopEnabled = e.target.checked; saveData(); refreshShopEverywhere();
+on('shopToggle', 'change', e => {
+    SITE.shopEnabled = e.target.checked; saveData(); refreshShopEverywhere(); markSync('saving');
 });
 
 // ---- Messages
@@ -276,11 +425,11 @@ function renderMessages() {
         saveData(); renderMessages();
     }));
 }
-document.getElementById('markAllRead').addEventListener('click', () => {
+on('markAllRead', 'click', () => {
     SITE.messages = SITE.messages.map(x => ({...x, read:true}));
     saveData(); renderMessages();
 });
-document.getElementById('deleteAllMsgs').addEventListener('click', () => {
+on('deleteAllMsgs', 'click', () => {
     if (!confirm('همه پیام‌ها حذف شوند؟')) return;
     SITE.messages = []; saveData(); renderMessages();
 });
@@ -302,7 +451,7 @@ function renderSocials() {
         </tr>`).join('') || `<tr><td colspan="5" class="empty">شبکه اجتماعی تعریف نشده</td></tr>`;
     tb.querySelectorAll('[data-edit-soc]').forEach(b => b.addEventListener('click', () => editSocial(+b.dataset.editSoc)));
     tb.querySelectorAll('[data-del-soc]').forEach(b => b.addEventListener('click', () => {
-        if (confirm('حذف این شبکه اجتماعی؟')) { SITE.socials = SITE.socials.filter(s => s.id !== +b.dataset.delSoc); saveData(); renderSocials(); renderSiteSocials(); }
+        if (confirm('حذف این شبکه اجتماعی؟')) { SITE.socials = SITE.socials.filter(s => s.id !== +b.dataset.delSoc); saveData(); renderSocials(); markSync('saving'); }
     }));
 }
 function socialForm(s) {
@@ -336,13 +485,9 @@ function saveSocial(id) {
     if (!obj.name) { alert('نام را وارد کنید'); return; }
     if (id) SITE.socials = SITE.socials.map(x => x.id===id?obj:x);
     else SITE.socials.push(obj);
-    saveData(); renderSocials(); renderSiteSocials(); closeModal();
+    saveData(); renderSocials(); closeModal(); markSync('saving'); showAdminToast('شبکه اجتماعی ذخیره شد.');
 }
-document.getElementById('addSocialBtn').addEventListener('click', () => openModal('افزودن شبکه اجتماعی', socialForm(null), () => saveSocial(0)));
-function renderSiteSocials() {
-    // Re-render footer socials across pages via saving and a re-render would happen on page load.
-    // For live feedback here we don't need it; next page load will use new data.
-}
+on('addSocialBtn', 'click', () => openModal('افزودن شبکه اجتماعی', socialForm(null), () => saveSocial(0)));
 
 // ---- Contact Cards
 function renderContact() {
@@ -362,7 +507,7 @@ function renderContact() {
         </tr>`).join('') || `<tr><td colspan="6" class="empty">-</td></tr>`;
     tb.querySelectorAll('[data-edit-cc]').forEach(b => b.addEventListener('click', () => editContact(+b.dataset.editCc)));
     tb.querySelectorAll('[data-del-cc]').forEach(b => b.addEventListener('click', () => {
-        if (confirm('حذف؟')) { SITE.contactCards = SITE.contactCards.filter(x => x.id !== +b.dataset.delCc); saveData(); renderContact(); }
+        if (confirm('حذف؟')) { SITE.contactCards = SITE.contactCards.filter(x => x.id !== +b.dataset.delCc); saveData(); renderContact(); markSync('saving'); }
     }));
 }
 function contactForm(c) {
@@ -396,11 +541,13 @@ function saveContact(id) {
     if (!obj.title) { alert('عنوان را وارد کنید'); return; }
     if (id) SITE.contactCards = SITE.contactCards.map(x => x.id===id?obj:x);
     else SITE.contactCards.push(obj);
-    saveData(); renderContact(); closeModal();
+    saveData(); renderContact(); closeModal(); markSync('saving'); showAdminToast('اطلاعات تماس ذخیره شد.');
 }
-document.getElementById('addContactBtn').addEventListener('click', () => openModal('افزودن کارت تماس', contactForm(null), () => saveContact(0)));
+on('addContactBtn', 'click', () => openModal('افزودن کارت تماس', contactForm(null), () => saveContact(0)));
 
 // ---- Generic list editor factory (projects, features, skills, whyme)
+// Holds the image picked in the currently-open simpleEditor modal.
+let currentEditorImage = '';
 function simpleEditor(config) {
     // config: { tableId, dataKey, fields:[{key,label,type}], onRender }
     const render = () => {
@@ -412,7 +559,7 @@ function simpleEditor(config) {
             const ic = item.icon || '';
             return `<tr>
                 <td>${toPersianNum(i+1)}</td>
-                <td class="pi"><i class="${ic}"></i></td>
+                <td>${config.withImage ? thumbCell(item.image, ic) : `<span class="pi"><i class="${ic}"></i></span>`}</td>
                 <td><strong>${main}</strong>${sub?`<div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.2rem;">${typeof sub==='string'?sub.slice(0,60):''}</div>`:''}</td>
                 ${config.fields.length>2?`<td style="font-size:0.82rem;color:var(--text-secondary);">${item[config.fields[2].key]||''}</td>`:''}
                 <td class="actions">
@@ -427,15 +574,25 @@ function simpleEditor(config) {
         }));
     };
     function form(item) {
-        item = item || config.fields.reduce((o,f)=>{o[f.key]='';return o;},{id:0,icon:'fas fa-star'});
+        item = item || config.fields.reduce((o,f)=>{o[f.key]='';return o;},{id:0,icon:'fas fa-star',image:''});
+        currentEditorImage = item.image || '';
         const wrap = document.createElement('div');
-        let html = `<div class="form-group"><label>آیکون</label><input type="text" id="e_icon" value="${item.icon||''}"></div><div class="form-group"><label>انتخاب آیکون</label><div id="e_iconPicker"></div></div>`;
+        let html = '';
         config.fields.forEach(f => {
             if (f.type === 'textarea') html += `<div class="form-group"><label>${f.label}</label><textarea id="e_${f.key}">${item[f.key]||''}</textarea></div>`;
             else html += `<div class="form-group"><label>${f.label}</label><input type="text" id="e_${f.key}" value="${item[f.key]||''}"></div>`;
         });
+        if (config.withImage) {
+            html += `<div class="form-group"><label>${config.imageLabel||'عکس'}</label><div id="e_image"></div>
+                     <div style="font-size:0.75rem;color:var(--text-muted);">اگر عکسی انتخاب نکنید، آیکون زیر نمایش داده می‌شود.</div></div>`;
+        }
+        html += `<div class="form-group"><label>آیکون</label><input type="text" id="e_icon" value="${item.icon||''}"></div><div class="form-group"><label>انتخاب آیکون</label><div id="e_iconPicker"></div></div>`;
         wrap.innerHTML = html;
-        setTimeout(() => wrap.querySelector('#e_iconPicker').appendChild(iconPicker(item.icon, ic => wrap.querySelector('#e_icon').value = ic)), 10);
+        setTimeout(() => {
+            wrap.querySelector('#e_iconPicker').appendChild(iconPicker(item.icon, ic => wrap.querySelector('#e_icon').value = ic));
+            const imgBox = wrap.querySelector('#e_image');
+            if (imgBox) imgBox.appendChild(imageUploader(currentEditorImage, v => { currentEditorImage = v; }, { placeholder: config.imagePlaceholder || 'fas fa-image' }));
+        }, 10);
         return wrap;
     }
     function edit(id) {
@@ -444,15 +601,16 @@ function simpleEditor(config) {
     }
     function save(id) {
         const obj = { id: id || nextId(SITE[config.dataKey]), icon: modalBody.querySelector('#e_icon').value.trim() || 'fas fa-star' };
+        if (config.withImage) obj.image = currentEditorImage;
         config.fields.forEach(f => {
             const el = modalBody.querySelector(`#e_${f.key}`);
             obj[f.key] = el ? el.value : '';
         });
         if (id) SITE[config.dataKey] = SITE[config.dataKey].map(x => x.id===id?obj:x);
         else SITE[config.dataKey].push(obj);
-        saveData(); render(); closeModal(); if (config.onChange) config.onChange();
+        saveData(); render(); closeModal(); if (config.onChange) config.onChange(); showAdminToast('ذخیره شد.');
     }
-    document.getElementById(config.addBtnId).addEventListener('click', () => openModal('افزودن', form(null), () => save(0)));
+    on(config.addBtnId, 'click', () => openModal('افزودن', form(null), () => save(0)));
     render();
     return render;
 }
@@ -469,17 +627,30 @@ function updatePhotoPreviews() {
     }
 }
 function setupPhoto(inputId, clearId, key) {
-    const input = document.getElementById(inputId);
-    if (!input) return;
-    input.addEventListener('change', e => {
-        const f = e.target.files[0]; if (!f) return;
-        if (f.size > 1024*1024) { alert('اندازه عکس باید کمتر از ۱ مگابایت باشد'); return; }
-        const r = new FileReader();
-        r.onload = ev => { SITE[key] = ev.target.result; saveData(); updatePhotoPreviews(); };
-        r.readAsDataURL(f);
+    const input = byId(inputId);
+    if (!input) { console.warn('[admin] missing photo input:', inputId); return; }
+    input.addEventListener('change', async e => {
+        const f = e.target.files && e.target.files[0];
+        if (!f) return;
+        try {
+            // Avatars are square-ish and small, so resize hard and compress.
+            SITE[key] = await readImageFile(f, 600, 0.85);
+            saveData();
+            updatePhotoPreviews();
+            markSync('saving');
+            showAdminToast('عکس با موفقیت جایگزین شد.');
+        } catch (err) {
+            alert(err.message || 'آپلود عکس ناموفق بود');
+        }
+        // Reset so choosing the SAME file again still fires a change event.
+        input.value = '';
     });
-    document.getElementById(clearId).addEventListener('click', () => {
-        if (confirm('حذف عکس؟')) { SITE[key] = ''; saveData(); updatePhotoPreviews(); }
+    on(clearId, 'click', () => {
+        if (!confirm('حذف عکس؟')) return;
+        SITE[key] = '';
+        saveData();
+        updatePhotoPreviews();
+        markSync('saving');
     });
 }
 setupPhoto('heroPhotoInput','heroPhotoClear','heroPhoto');
@@ -493,10 +664,10 @@ function loadAboutTexts() {
         if (el) el.value = SITE.texts[id] || '';
     });
 }
-document.getElementById('saveAboutTexts').addEventListener('click', () => {
+on('saveAboutTexts', 'click', () => {
     const ids = ['about_name','about_intro','about_years','about_block1_title','about_block1_desc','about_block2_title','about_block2_desc','about_block3_title','about_block3_desc'];
     ids.forEach(id => { SITE.texts[id] = document.getElementById('t_'+id).value; });
-    saveData(); alert('ذخیره شد. برای مشاهده، صفحه درباره من را رفرش کنید.');
+    saveData(); markSync('saving'); showAdminToast('تغییرات درباره من ذخیره و روی سایت اعمال شد.');
 });
 
 // ---- All texts editor
@@ -535,11 +706,11 @@ function renderTextsEditor() {
         box.appendChild(row);
     });
 }
-document.getElementById('saveTexts').addEventListener('click', () => {
+on('saveTexts', 'click', () => {
     document.querySelectorAll('[data-tkey]').forEach(el => {
         SITE.texts[el.dataset.tkey] = el.value;
     });
-    saveData(); alert('همه متن‌ها ذخیره شدند. برای مشاهده، سایت را رفرش کنید.');
+    saveData(); markSync('saving'); showAdminToast('همه متن‌ها ذخیره و روی سایت اعمال شد.');
 });
 
 // ---- Visibility
@@ -561,13 +732,13 @@ function renderVisibility() {
             <label class="switch"><input type="checkbox" data-vis="${k}" ${SITE.visible[k]?'checked':''}><span class="slider"></span></label>
         </div>`).join('');
     box.querySelectorAll('[data-vis]').forEach(cb => cb.addEventListener('change', () => {
-        SITE.visible[cb.dataset.vis] = cb.checked; saveData();
+        SITE.visible[cb.dataset.vis] = cb.checked; saveData(); markSync('saving');
     }));
 }
 
 // ---- Settings (password + data)
-document.getElementById('setUser').value = SITE.auth.username;
-document.getElementById('savePassword').addEventListener('click', () => {
+if (byId('setUser')) byId('setUser').value = SITE.auth.username;
+on('savePassword', 'click', () => {
     const oldU = document.getElementById('setUser').value;
     const oldP = document.getElementById('setOldPass').value;
     const newU = document.getElementById('setNewUser').value;
@@ -586,20 +757,19 @@ document.getElementById('savePassword').addEventListener('click', () => {
     setTimeout(()=>{msg.className='';msg.textContent='';},3000);
 });
 
-document.getElementById('setBrand').value = SITE.texts.brand || '';
-document.getElementById('saveBrand').addEventListener('click', () => {
-    SITE.texts.brand = document.getElementById('setBrand').value; saveData();
-    alert('ذخیره شد.');
+if (byId('setBrand')) byId('setBrand').value = SITE.texts.brand || '';
+on('saveBrand', 'click', () => {
+    SITE.texts.brand = byId('setBrand').value; saveData(); markSync('saving'); showAdminToast('ذخیره شد.');
 });
 
-document.getElementById('exportData').addEventListener('click', () => {
+on('exportData', 'click', () => {
     const blob = new Blob([JSON.stringify(SITE, null, 2)], {type:'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = `amir-site-backup-${new Date().toISOString().slice(0,10)}.json`;
     a.click(); URL.revokeObjectURL(url);
 });
-document.getElementById('importData').addEventListener('change', e => {
+on('importData', 'change', e => {
     const f = e.target.files[0]; if (!f) return;
     const r = new FileReader();
     r.onload = ev => {
@@ -612,7 +782,7 @@ document.getElementById('importData').addEventListener('change', e => {
     };
     r.readAsText(f);
 });
-document.getElementById('resetData').addEventListener('click', () => {
+on('resetData', 'click', () => {
     if (!confirm('همه تغییرات شما پاک شده و سایت به حالت اولیه بازگردد؟')) return;
     if (!confirm('این عملیات غیرقابل بازگشت است. مطمئن هستید؟')) return;
     localStorage.removeItem('amir_site_data_v2');
@@ -661,7 +831,7 @@ function renderOrders() {
         saveData(); renderOrders();
     }));
 }
-document.getElementById('delAllOrders').addEventListener('click', () => {
+on('delAllOrders', 'click', () => {
     if (!confirm('همه سفارشات حذف شوند؟')) return;
     SITE.orders = []; saveData(); renderOrders();
 });
@@ -683,7 +853,7 @@ function updateTgStatus() {
         box.innerHTML = `<span style="color:var(--warning);"><i class="fas fa-exclamation-triangle"></i> هنوز پیکربندی نشده است</span>`;
     }
 }
-document.getElementById('saveTelegram').addEventListener('click', async () => {
+on('saveTelegram', 'click', async () => {
     const token = document.getElementById('tgToken').value.trim();
     const chatId = document.getElementById('tgChatId').value.trim();
     const botUsername = document.getElementById('tgBotUsername').value.trim().replace('@','');
@@ -728,7 +898,10 @@ document.getElementById('saveTelegram').addEventListener('click', async () => {
 });
 
 // ---- Dashboard Init
+let _dashboardReady = false;
 function initDashboard() {
+    if (_dashboardReady) return;
+    _dashboardReady = true;
     renderProducts();
     renderOrders();
     renderMessages();
@@ -745,23 +918,43 @@ function initDashboard() {
     simpleEditor({
         tableId:'projectsTable', dataKey:'projects',
         fields:[{key:'title',label:'عنوان'},{key:'tag',label:'برچسب'},{key:'desc',label:'توضیح',type:'textarea'},{key:'tech',label:'تکنولوژی‌ها (با کاما جدا کنید)'}],
-        addBtnId:'addProjectBtn'
+        addBtnId:'addProjectBtn',
+        withImage:true, imageLabel:'عکس نمونه‌کار', imagePlaceholder:'fas fa-briefcase',
+        onChange: notifySiteUpdated
     });
     simpleEditor({
         tableId:'featuresTable', dataKey:'features',
         fields:[{key:'title',label:'عنوان'},{key:'desc',label:'توضیح',type:'textarea'}],
-        addBtnId:'addFeatureBtn'
+        addBtnId:'addFeatureBtn',
+        withImage:true, imageLabel:'عکس خدمت', imagePlaceholder:'fas fa-concierge-bell',
+        onChange: notifySiteUpdated
     });
     simpleEditor({
         tableId:'skillsTable', dataKey:'skills',
         fields:[{key:'name',label:'نام مهارت'}],
-        addBtnId:'addSkillBtn'
+        addBtnId:'addSkillBtn',
+        onChange: notifySiteUpdated
     });
     simpleEditor({
         tableId:'whymeTable', dataKey:'whyme',
         fields:[{key:'title',label:'عنوان'},{key:'desc',label:'توضیح',type:'textarea'}],
-        addBtnId:'addWhymeBtn'
+        addBtnId:'addWhymeBtn',
+        withImage:true, imageLabel:'عکس (اختیاری)', imagePlaceholder:'fas fa-award',
+        onChange: notifySiteUpdated
     });
+
+    // Pull the shared copy first, then keep it in sync so several admins /
+    // devices don't clobber each other.
+    if (typeof initSync === 'function') {
+        initSync(() => {
+            renderProducts(); renderOrders(); renderMessages();
+            renderSocials(); renderContact();
+            updatePhotoPreviews(); loadAboutTexts();
+            renderVisibility(); loadTelegramSettings();
+            const st = byId('shopToggle'); if (st) st.checked = SITE.shopEnabled;
+        });
+        markSync(window.__syncOk === false ? 'local' : 'ok');
+    }
 }
 
 checkAuth();
