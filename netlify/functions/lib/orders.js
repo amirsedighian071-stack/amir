@@ -3,9 +3,9 @@
 const fs = require('fs');
 const path = require('path');
 const {
-  createBlobStorageError,
-  getBlobStore,
-  isProductionRuntime
+  isProductionRuntime,
+  openBlobStore,
+  productionPersistError
 } = require('./blob-store');
 
 const STORE_NAME = 'orders';
@@ -13,7 +13,7 @@ const KEY = 'orders.json';
 const TMP_FILE = path.join('/tmp', KEY);
 
 async function loadOrders() {
-  const { store } = getBlobStore(STORE_NAME);
+  const { store } = await openBlobStore(STORE_NAME);
   if (store) {
     try {
       const raw = await store.get(KEY);
@@ -22,13 +22,9 @@ async function loadOrders() {
         return Array.isArray(orders) ? orders : [];
       }
     } catch (error) {
-      if (isProductionRuntime()) {
-        console.error('[orders] خواندن سفارش‌ها از Netlify Blobs ناموفق بود:', error);
-      }
+      // Fall back for local development.
     }
   }
-
-  if (isProductionRuntime()) return [];
 
   try {
     const orders = JSON.parse(fs.readFileSync(TMP_FILE, 'utf8'));
@@ -40,33 +36,27 @@ async function loadOrders() {
 
 async function saveOrders(orders) {
   const safeOrders = Array.isArray(orders) ? orders : [];
-  const { store, error: storeError } = getBlobStore(STORE_NAME);
-  let blobError = storeError;
-
+  const { store, error } = await openBlobStore(STORE_NAME);
+  let blobError = error;
   if (store) {
     try {
       await store.set(KEY, JSON.stringify(safeOrders));
       return safeOrders;
-    } catch (error) {
-      blobError = error;
+    } catch (setError) {
+      // Fall back for local development only. In production the fallback
+      // must not be used silently: /tmp disappears between invocations and
+      // orders placed by customers would vanish without any visible error.
+      blobError = setError;
     }
   }
 
   if (isProductionRuntime()) {
-    const storageError = createBlobStorageError(
-      'سفارش در فضای دائمی Netlify Blobs ذخیره نشد',
-      blobError
-    );
-    console.error('[orders] خطا در ذخیره سفارش‌ها:', storageError);
-    throw storageError;
+    // The thrown message contains the real reason (error.message) and the
+    // failure is logged with console.error before the caller responds.
+    throw productionPersistError('سفارش در فضای دائمی Netlify Blobs ذخیره نشد', blobError);
   }
 
-  try {
-    fs.writeFileSync(TMP_FILE, JSON.stringify(safeOrders, null, 2));
-  } catch (error) {
-    console.error('[orders] خطا در ذخیره سفارش‌ها در محیط محلی:', error);
-    throw error;
-  }
+  fs.writeFileSync(TMP_FILE, JSON.stringify(safeOrders, null, 2));
   return safeOrders;
 }
 
