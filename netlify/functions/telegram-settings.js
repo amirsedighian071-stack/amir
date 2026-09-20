@@ -3,7 +3,12 @@
 const fs = require('fs');
 const path = require('path');
 const fetch = require('node-fetch');
-const { getTelegramConfig, normaliseTelegramConfig, saveTelegramConfig } = require('./lib/telegram-config');
+const {
+  getTelegramConfig,
+  normaliseTelegramConfig,
+  readStoredTelegramConfig,
+  saveTelegramConfig
+} = require('./lib/telegram-config');
 
 const SITE_STORE_NAME = 'site';
 const SITE_KEY = 'site-data.json';
@@ -74,7 +79,8 @@ async function telegramApi(token, method, body) {
 
 function webhookUrl(event) {
   const incomingHeaders = event.headers || {};
-  const host = incomingHeaders['x-forwarded-host'] || incomingHeaders.host;
+  const hostHeader = incomingHeaders['x-forwarded-host'] || incomingHeaders.host || '';
+  const host = String(hostHeader).split(',')[0].trim();
   if (!host || /^(localhost|127\.0\.0\.1)(:|$)/i.test(host)) return null;
   const protocol = (incomingHeaders['x-forwarded-proto'] || 'https').split(',')[0].trim();
   return `${protocol}://${host}/.netlify/functions/telegram-bot`;
@@ -138,6 +144,19 @@ exports.handler = async (event) => {
     });
 
     await saveTelegramConfig(config);
+
+    // Read the configuration back through the same loader the order/checkout
+    // functions use. If it does not round-trip (e.g. Blobs unavailable and
+    // only ephemeral /tmp was written), tell the admin now instead of letting
+    // every customer order fail later with "bot is not configured".
+    const stored = await readStoredTelegramConfig();
+    if (!stored || stored.botToken !== config.botToken || stored.chatId !== config.chatId) {
+      return response(500, {
+        ok: false,
+        error: 'تنظیمات ذخیره نشد؛ فضای ذخیره‌سازی سایت در دسترس نیست. سایت را دوباره Deploy کنید و سپس تنظیمات را مجدداً ذخیره کنید.'
+      });
+    }
+
     return response(200, {
       ok: true,
       message: url

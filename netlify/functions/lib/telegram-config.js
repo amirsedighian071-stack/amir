@@ -21,6 +21,21 @@ function normaliseTelegramConfig(value = {}) {
   };
 }
 
+// True when the code runs on a real Netlify Functions host. The /tmp storage
+// fallback is only acceptable for local development; on production it would
+// silently lose the bot configuration between invocations (each invocation can
+// run in a fresh container), which broke checkout even though the settings
+// panel had reported success.
+function isProductionRuntime() {
+  if (process.env.NETLIFY_DEV === 'true') return false;
+  return Boolean(
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.NETLIFY === 'true' ||
+    process.env.CONTEXT ||
+    process.env.SITE_ID
+  );
+}
+
 async function getPrivateStore() {
   try {
     const { getStore } = require('@netlify/blobs');
@@ -51,13 +66,24 @@ async function readStoredTelegramConfig() {
 async function saveTelegramConfig(value) {
   const config = normaliseTelegramConfig(value);
   const store = await getPrivateStore();
+  let blobError = null;
   if (store) {
     try {
       await store.set(KEY, JSON.stringify(config));
       return config;
     } catch (error) {
-      // Keep local Netlify dev usable when Blobs are unavailable.
+      // Keep local Netlify dev usable when Blobs are unavailable, but never
+      // pretend a production save succeeded when it only went to ephemeral
+      // /tmp — the next order would see an empty configuration again.
+      blobError = error;
     }
+  }
+
+  if (isProductionRuntime()) {
+    const reason = blobError && blobError.message ? ` (${blobError.message})` : '';
+    throw new Error(
+      'تنظیمات در فضای دائمی Netlify Blobs ذخیره نشد؛ سایت را دوباره Deploy کنید یا اتصال Blobs را بررسی کنید' + reason
+    );
   }
 
   fs.writeFileSync(TMP_FILE, JSON.stringify(config, null, 2));
@@ -90,6 +116,7 @@ async function getTelegramConfig() {
 
 module.exports = {
   getTelegramConfig,
+  isProductionRuntime,
   normaliseTelegramConfig,
   readStoredTelegramConfig,
   saveTelegramConfig
