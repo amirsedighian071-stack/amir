@@ -150,6 +150,23 @@ const DEFAULT_DATA = {
     orders: []
 };
 
+// Additive schema migration: preserve existing Persian content and independent settings.
+Object.assign(DEFAULT_DATA.texts, CONTENT_FA);
+DEFAULT_DATA.textsEn = {...CONTENT_EN};
+DEFAULT_DATA.itemTranslations = {};
+DEFAULT_DATA.extraContent = {header: [], footer: []};
+DEFAULT_DATA.contentLinks = {};
+Object.values(CONTENT_SECTIONS).forEach(section => {
+    Object.keys(section.visible).forEach(key => { DEFAULT_DATA.visible[key] = true; });
+});
+function normalizeContent(data) {
+    data.textsEn = {...CONTENT_EN, ...(data.textsEn || {})};
+    data.itemTranslations = data.itemTranslations || {};
+    data.extraContent = {header: [], footer: [], ...(data.extraContent || {})};
+    data.contentLinks = data.contentLinks || {};
+    return data;
+}
+
 // ============== Load/Save ==============
 function loadData() {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -175,7 +192,7 @@ function saveData(opts) {
     }
     if (!opts || opts.push !== false) pushDataToServer();
 }
-const SITE = loadData();
+const SITE = normalizeContent(loadData());
 
 // ============== Remote (shared) data sync ==============
 // Everything the admin changes is pushed to a serverless store so that ALL
@@ -266,6 +283,7 @@ function mergeRemote(remote) {
     delete remoteTelegram.chatId;
     SITE.telegram = Object.assign({}, DEFAULT_DATA.telegram, remoteTelegram);
     SITE.auth = Object.assign({}, DEFAULT_DATA.auth, remote.auth || {});
+    normalizeContent(SITE);
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(SITE)); } catch (e) { /* quota: server copy still wins */ }
     return true;
 }
@@ -336,11 +354,31 @@ let CART = loadCart();
 // ============== Helpers ==============
 function toPersianNum(n) {
     if (n===null||n===undefined) return '';
+    if (isEnglish()) return String(n);
     const p=['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
     return n.toString().replace(/\d/g,d=>p[d]);
 }
 function formatPrice(n) { return toPersianNum(Number(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,',')); }
-function txt(key) { return SITE.texts[key] || DEFAULT_DATA.texts[key] || key; }
+function isEnglish() { return document.body.classList.contains('public-site') && localStorage.getItem('amir_language') === 'en'; }
+function txt(key) {
+    return isEnglish() ? (SITE.textsEn[key] ?? CONTENT_EN[key] ?? SITE.texts[key] ?? key) : (SITE.texts[key] ?? DEFAULT_DATA.texts[key] ?? key);
+}
+function contentItems(list) {
+    return (SITE[list] || []).filter(item => isVisible(`item:${list}:${item.id}`)).map(item => {
+        if (!isEnglish()) return item;
+        const original = (DEFAULT_DATA[list] || []).find(x => x.id === item.id);
+        const defaults = (CONTENT_ITEMS_EN[list] || [])[item.id - 1] || {};
+        const translated = {};
+        // Default translations apply only to unchanged starter content, not custom records.
+        Object.keys(defaults).forEach(key => {
+            if (original && JSON.stringify(item[key]) === JSON.stringify(original[key])) translated[key] = defaults[key];
+        });
+        return {...item, ...translated, ...(SITE.itemTranslations[list]?.[item.id] || {})};
+    });
+}
+function uiText(key) { return `<span data-text="${escapeContent(key)}" class="${isVisible('text:'+key)?'':'content-text-hidden'}">${escapeContent(txt(key))}</span>`; }
+function escapeContent(value) { return String(value ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
 function isVisible(key) { return SITE.visible[key] !== false; }
 function nextId(arr) { return arr.length ? Math.max(...arr.map(x => x.id||0))+1 : 1; }
 
@@ -370,7 +408,7 @@ function arrSig(arr, pick) {
 function cardSig(x) {
     return [x.id, x.icon || '', shash(x.title), shash(x.desc), imgSig(x.image)].join(',');
 }
-function getProduct(id) { return SITE.products.find(p => p.id === id); }
+function getProduct(id) { return contentItems('products').find(p => p.id === id); }
 function cartTotal() {
     return Object.entries(CART).reduce((sum, [pid, qty]) => {
         const p = getProduct(+pid); return sum + (p ? p.price * qty : 0);
@@ -399,7 +437,7 @@ function applyTheme(theme) {
 
 // ============== Navbar ==============
 function initNavbar() {
-    const page = location.pathname.split('/').pop() || 'index.html';
+    const page = (location.pathname.replace(/\/+$/, '').split('/').pop() || 'index').replace(/\.html$/, '') + '.html';
     const map = {'':'home','index.html':'home','shop.html':'shop','projects.html':'projects','about.html':'about','contact.html':'contact'};
     const section = map[page] || 'home';
     document.querySelectorAll('.nav-link').forEach(l => l.classList.toggle('active', l.getAttribute('data-section')===section));
@@ -407,10 +445,11 @@ function initNavbar() {
     if (menuBtn && nav) {
         menuBtn.addEventListener('click', () => {
             nav.classList.toggle('active');
+            menuBtn.setAttribute('aria-expanded', String(nav.classList.contains('active')));
             menuBtn.innerHTML = nav.classList.contains('active') ? '<i class="fas fa-times"></i>' : '<i class="fas fa-bars"></i>';
         });
         document.querySelectorAll('.nav-link').forEach(l => l.addEventListener('click', () => {
-            nav.classList.remove('active'); if (menuBtn) menuBtn.innerHTML='<i class="fas fa-bars"></i>';
+            nav.classList.remove('active'); menuBtn.setAttribute('aria-expanded','false'); if (menuBtn) menuBtn.innerHTML='<i class="fas fa-bars"></i>';
         }));
     }
     const nb = document.getElementById('navbar');
@@ -431,22 +470,20 @@ function initNavbar() {
 }
 
 // ============== Shop renderer ==============
-const CAT_NAME_MAP = {hosting:'هاست',domain:'دامنه',server:'سرور',vpn:'VPN'};
-const PRODUCT_BADGES = {hot:'<span class="product-badge badge-hot">داغ</span>',new:'<span class="product-badge badge-new">جدید</span>',sale:'<span class="product-badge badge-sale">تخفیف</span>'};
 
 function productCardHtml(p) {
     return `
-        <div class="product-card" data-pid="${p.id}">
-            ${PRODUCT_BADGES[p.badge]||''}
-            <div class="product-image${p.image?' has-photo':''}">${p.image?`<img src="${p.image}" alt="${p.name}" loading="lazy">`:`<i class="${p.icon}"></i>`}</div>
+        <div class="product-card" data-pid="${p.id}" data-item-list="products" data-item-id="${p.id}">
+            ${p.badge ? `<span class="product-badge badge-${p.badge}">${uiText("badge_"+p.badge)}</span>` : ''}
+            <div class="product-image${p.image?' has-photo':''}">${p.image?`<img src="${p.image}" alt="${escapeContent(p.name)}" loading="lazy">`:`<i class="${p.icon}"></i>`}</div>
             <div class="product-body">
-                <div class="product-cat">${CAT_NAME_MAP[p.category]||''}</div>
-                <h3 class="product-title">${p.name}</h3>
-                <p class="product-desc">${p.description||''}</p>
-                <ul class="product-features">${(p.features||[]).slice(0,3).map(f=>`<li><i class="fas fa-check-circle"></i> ${f}</li>`).join('')}</ul>
+                <div class="product-cat">${uiText('category_'+p.category)}</div>
+                <h3 class="product-title">${escapeContent(p.name)}</h3>
+                <p class="product-desc">${escapeContent(p.description||'')}</p>
+                <ul class="product-features">${(p.features||[]).slice(0,3).map(f=>`<li><i class="fas fa-check-circle"></i> ${escapeContent(f)}</li>`).join('')}</ul>
                 <div class="product-footer">
-                    <div class="product-price"><span class="price-amount">${formatPrice(p.price)}</span><span class="price-unit">تومان / ${p.unit}</span></div>
-                    <button class="btn btn-primary btn-sm" data-quick="${p.id}"><i class="fas fa-cart-plus"></i> خرید</button>
+                    <div class="product-price"><span class="price-amount">${formatPrice(p.price)}</span><span class="price-unit">${uiText('currency')} / ${escapeContent(p.unit)}</span></div>
+                    <button class="btn btn-primary btn-sm" data-quick="${p.id}"><i class="fas fa-cart-plus"></i> ${uiText('buy')}</button>
                 </div>
             </div>
         </div>`;
@@ -455,7 +492,7 @@ function productCardHtml(p) {
 function shopSignature(category, limit, showFilters, slider, list) {
     // The old code ran JSON.stringify over the whole product list — including
     // megabytes of base64 photos — on every render pass. Fingerprints are enough.
-    return category + '|' + limit + '|' + (showFilters ? 1 : 0) + '|' + (slider ? 1 : 0) + '|' +
+    return JSON.stringify([isEnglish(), SITE.texts, SITE.textsEn, SITE.visible]) + '|' + category + '|' + limit + '|' + (showFilters ? 1 : 0) + '|' + (slider ? 1 : 0) + '|' +
         arrSig(list, p => [p.id, p.category || '', p.price, p.unit || '', p.badge || '', p.icon || '',
             shash(p.name), shash(p.description), shash(p.longDescription),
             (p.features || []).map(shash).join('~'), imgSig(p.image)].join(','));
@@ -465,13 +502,13 @@ function renderShop(container, opts={}) {
     if (!container) return;
     const { category='all', limit=0, showFilters=true } = opts;
     if (!SITE.shopEnabled) {
-        if (container.dataset.shopSig === 'disabled') return;
         container.dataset.shopSig = 'disabled';
-        container.innerHTML = `<div class="shop-disabled"><i class="fas fa-tools"></i><h3>${txt('shopDisabled_title')}</h3><p>${txt('shopDisabled_desc')}</p><p style="margin-top:1rem;font-size:0.85rem;color:var(--text-muted);">${txt('shopDisabled_extra')} <a href="contact.html" style="color:var(--primary);">تماس با پشتیبانی</a></p></div>`;
+        container.innerHTML = `<div class="shop-disabled" role="status"><div class="maintenance-orbit" data-visible="shopDisabled_animation" aria-hidden="true"><i class="fas fa-tools"></i><span></span></div><h3 data-text="shopDisabled_title">${escapeContent(txt('shopDisabled_title'))}</h3><p data-text="shopDisabled_desc">${escapeContent(txt('shopDisabled_desc'))}</p><p data-text="shopDisabled_extra">${escapeContent(txt('shopDisabled_extra'))}</p><a class="btn btn-outline" data-visible="shopDisabled_support" data-content-link="shopDisabled_support" href="contact.html"><span data-text="support">${escapeContent(txt('support'))}</span></a></div>`;
+        if (typeof applyContentControls === 'function') applyContentControls();
         return;
     }
-    const cats=[{id:'all',name:'همه'},{id:'hosting',name:'هاست'},{id:'domain',name:'دامنه'},{id:'server',name:'سرور'},{id:'vpn',name:'VPN'}];
-    let list = category==='all' ? SITE.products : SITE.products.filter(p=>p.category===category);
+    const cats=['all','hosting','domain','server','vpn'].map(id=>({id,name:txt('category_'+id)}));
+    let list = contentItems('products').filter(p=>category==='all' || p.category===category);
     if (limit>0) list=list.slice(0,limit);
     const slider = container.dataset.slider === 'true' && list.length > 0;
 
@@ -483,7 +520,7 @@ function renderShop(container, opts={}) {
 
     let html='';
     if (showFilters && limit===0) {
-        html += `<div class="shop-categories">${cats.map(c=>`<button class="shop-cat-btn ${c.id===category?'active':''}" data-cat="${c.id}">${c.name}</button>`).join('')}</div>`;
+        html += `<div class="shop-categories">${cats.map(c=>`<button class="shop-cat-btn ${c.id===category?'active':''}" data-cat="${c.id}">${uiText('category_'+c.id)}</button>`).join('')}</div>`;
     }
     if (slider) {
         html += shopSliderHtml(list);
@@ -502,6 +539,7 @@ function renderShop(container, opts={}) {
         e.stopPropagation();
         openProductDetail(+b.dataset.quick, b.closest('.product-card'));
     }));
+    if (typeof applyContentControls === 'function') applyContentControls();
     if (slider) {
         // cloned slides are visual duplicates: keep them out of the tab order
         container.querySelectorAll('.slider-item[data-real="0"] a, .slider-item[data-real="0"] button').forEach(el => { el.tabIndex = -1; });
@@ -520,13 +558,13 @@ function shopSliderHtml(list) {
         ...(clones ? list.slice(0,clones).map(p=>item(p,false)) : [])
     ].join('');
     const dots = count > 1
-        ? `<div class="slider-dots" role="tablist">${list.map((p,i)=>`<button type="button" class="slider-dot${i===0?' is-active':''}" data-dot="${i}" role="tab" aria-label="${p.name}"></button>`).join('')}</div>`
+        ? `<div class="slider-dots" role="tablist">${list.map((p,i)=>`<button type="button" class="slider-dot${i===0?' is-active':''}" data-dot="${i}" role="tab" aria-label="${escapeContent(p.name)}"></button>`).join('')}</div>`
         : '';
     return `
-    <div class="shop-slider${count<=3?` slider-count-${count}`:''}" data-slider-root role="region" aria-roledescription="carousel" aria-label="${txt('shopPreview_title')}">
+    <div class="shop-slider${count<=3?` slider-count-${count}`:''}" data-slider-root role="region" aria-roledescription="carousel" aria-label="${escapeContent(txt('shopPreview_title'))}">
         <div class="slider-glow" aria-hidden="true"></div>
-        <button type="button" class="slider-arrow slider-arrow--prev" data-slider-prev aria-label="اسلاید قبلی"><i class="fas fa-chevron-right"></i></button>
-        <button type="button" class="slider-arrow slider-arrow--next" data-slider-next aria-label="اسلاید بعدی"><i class="fas fa-chevron-left"></i></button>
+        <button type="button" class="slider-arrow slider-arrow--prev" data-slider-prev aria-label="${escapeContent(txt('previousSlide'))}"><i class="fas fa-chevron-right"></i></button>
+        <button type="button" class="slider-arrow slider-arrow--next" data-slider-next aria-label="${escapeContent(txt('nextSlide'))}"><i class="fas fa-chevron-left"></i></button>
         <div class="slider-viewport" data-slider-viewport>
             <div class="slider-track" data-slider-track>${slides}</div>
         </div>
@@ -926,24 +964,26 @@ document.addEventListener('keydown', e => {
 let currentDetailQty = 1;
 let currentDetailPid = null;
 function openProductDetail(pid, sourceEl) {
-    const p = getProduct(pid); if (!p) return;
+    const p = getProduct(pid); if (!p || !SITE.shopEnabled) return;
     currentDetailPid = pid; currentDetailQty = CART[pid] || 1;
-    const badges={hot:'داغ',new:'جدید',sale:'تخفیف'};
+    const badges={hot:txt('badge_hot'),new:txt('badge_new'),sale:txt('badge_sale')};
     const overlay = document.getElementById('productModal') || createProductModal();
+    overlay.dataset.itemList='products'; overlay.dataset.itemId=String(pid);
     const icon = overlay.querySelector('.product-detail-icon');
     icon.classList.toggle('has-photo', !!p.image);
-    icon.innerHTML = `${p.badge?`<span class="product-badge badge-${p.badge}">${badges[p.badge]}</span>`:''}${p.image?`<img src="${p.image}" alt="${p.name}">`:`<i class="${p.icon}"></i>`}`;
-    overlay.querySelector('.product-detail-cat').textContent = CAT_NAME_MAP[p.category]||'';
+    icon.innerHTML = `${p.badge?`<span class="product-badge badge-${p.badge}">${badges[p.badge]}</span>`:''}${p.image?`<img src="${p.image}" alt="${escapeContent(p.name)}">`:`<i class="${p.icon}"></i>`}`;
+    overlay.querySelector('.product-detail-cat').textContent = txt('category_'+p.category);
     overlay.querySelector('.product-detail-title').textContent = p.name;
     overlay.querySelector('.product-detail-desc').textContent = p.description||'';
     overlay.querySelector('.product-detail-long').textContent = p.longDescription||'';
     overlay.querySelector('.product-detail-long').style.display = p.longDescription ? 'block' : 'none';
     overlay.querySelector('.pd-price').textContent = formatPrice(p.price);
-    overlay.querySelector('.pd-unit').textContent = `تومان / ${p.unit}`;
-    overlay.querySelector('.product-detail-features').innerHTML = (p.features||[]).map(f=>`<li><i class="fas fa-check-circle"></i> ${f}</li>`).join('');
+    overlay.querySelector('.pd-unit').textContent = `${txt('currency')} / ${p.unit}`;
+    overlay.querySelector('.product-detail-features').innerHTML = (p.features||[]).map(f=>`<li><i class="fas fa-check-circle"></i> ${escapeContent(f)}</li>`).join('');
     const qtyInput = overlay.querySelector('.qty-input');
     qtyInput.value = currentDetailQty;
     updateDetailTotal();
+    if (typeof applyContentControls === 'function') applyContentControls();
     openAnimatedOverlay(overlay, sourceEl || overlay.__source || document.querySelector(`.product-card[data-pid="${pid}"]`));
 }
 function updateDetailTotal() {
@@ -973,7 +1013,7 @@ function createProductModal() {
                             <span class="price-unit pd-unit"></span>
                         </div>
                         <div style="display:flex;align-items:center;gap:1rem;">
-                            <span style="font-size:0.85rem;color:var(--text-secondary);">تعداد:</span>
+                            <span style="font-size:0.85rem;color:var(--text-secondary);">${uiText('quantity')}:</span>
                             <div class="qty-control">
                                 <button type="button" data-qty="minus"><i class="fas fa-minus"></i></button>
                                 <input type="number" class="qty-input" min="1" value="1">
@@ -981,15 +1021,16 @@ function createProductModal() {
                             </div>
                         </div>
                     </div>
-                    <p style="font-size:0.9rem;margin-bottom:0.5rem;">جمع نهایی: <span class="pd-total-qty" style="font-weight:700;color:var(--primary);">۱</span> عدد = <strong class="pd-total-price" style="color:var(--primary);">-</strong></p>
+                    <p style="font-size:0.9rem;margin-bottom:0.5rem;">${uiText('totalPrice')}: <span class="pd-total-qty" style="font-weight:700;color:var(--primary);">1</span> ${uiText('itemCount')} = <strong class="pd-total-price" style="color:var(--primary);">-</strong></p>
                     <div class="detail-actions">
-                        <button class="btn btn-primary" id="addCartBtn"><i class="fas fa-cart-plus"></i> ${txt('addToCart')}</button>
-                        <button class="btn btn-outline" id="viewCartBtn" data-close><i class="fas fa-shopping-basket"></i> ${txt('viewCart')}</button>
+                        <button class="btn btn-primary" id="addCartBtn"><i class="fas fa-cart-plus"></i> ${uiText('addToCart')}</button>
+                        <button class="btn btn-outline" id="viewCartBtn" data-close><i class="fas fa-shopping-basket"></i> ${uiText('viewCart')}</button>
                     </div>
                 </div>
             </div>
         </div>`;
     document.body.appendChild(div);
+    if (typeof applyContentControls === 'function') applyContentControls();
     div.addEventListener('click', e => { if (e.target===div || e.target.closest('[data-close]')) { closeProductModal(); } });
     div.classList.add('overlay--product');
     const panel = div.querySelector('.modal-lg'); if (panel) panel.classList.add('modal-animated');
@@ -1010,6 +1051,7 @@ function closeProductModal(done) {
 
 // ============== Cart ==============
 function addToCart(pid, qty=1) {
+    if (!SITE.shopEnabled || !getProduct(pid)) return;
     CART[pid] = (CART[pid]||0) + qty;
     saveCart(CART);
 }
@@ -1019,8 +1061,8 @@ function updateCartBadge() {
     const count = cartCount();
     if (badge) badge.textContent = toPersianNum(count);
     if (floatBtn) {
-        floatBtn.setAttribute('aria-label', `${txt('cartTitle')}، ${toPersianNum(count)} محصول`);
-        if (count > 0) {
+        floatBtn.setAttribute('aria-label', `${txt('cartTitle')}, ${toPersianNum(count)} ${txt('itemCount')}`);
+        if (count > 0 && SITE.shopEnabled) {
             const wasHidden = floatBtn.hidden;
             floatBtn.hidden = false;
             if (wasHidden) {
@@ -1038,7 +1080,7 @@ function createCartUI() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'cart-float'; btn.id = 'cartFloat'; btn.title = txt('cartTitle');
-    btn.innerHTML = `<i class="fas fa-shopping-cart" aria-hidden="true"></i><span class="cart-float-label">${txt('cartTitle')}</span><span class="cart-badge" id="cartBadge">۰</span>`;
+    btn.innerHTML = `<i class="fas fa-shopping-cart" aria-hidden="true"></i><span class="cart-float-label">${uiText('cartTitle')}</span><span class="cart-badge" id="cartBadge">۰</span>`;
     btn.addEventListener('click', openCart);
     btn.hidden = true;
     document.body.appendChild(btn);
@@ -1056,17 +1098,18 @@ function createCartModal() {
     div.innerHTML = `
         <div class="modal-md">
             <button class="modal-close" data-close><i class="fas fa-times"></i></button>
-            <div class="cart-header"><h2><i class="fas fa-shopping-basket"></i> ${txt('cartTitle')}</h2></div>
+            <div class="cart-header"><h2><i class="fas fa-shopping-basket"></i> ${uiText('cartTitle')}</h2></div>
             <div class="cart-body" id="cartBody"></div>
             <div class="cart-footer">
-                <div class="cart-total"><span>${txt('cartTotal')}:</span><span class="cart-total-price" id="cartTotal">0</span></div>
+                <div class="cart-total"><span>${uiText('cartTotal')}:</span><span class="cart-total-price" id="cartTotal">0</span></div>
                 <div class="cart-actions">
-                    <button class="btn btn-outline btn-sm" data-close>${txt('continueShopping')}</button>
-                    <button class="btn btn-primary btn-sm" id="checkoutBtn"><i class="fas fa-credit-card"></i> ${txt('completeOrder')}</button>
+                    <button class="btn btn-outline btn-sm" data-close>${uiText('continueShopping')}</button>
+                    <button class="btn btn-primary btn-sm" id="checkoutBtn"><i class="fas fa-credit-card"></i> ${uiText('completeOrder')}</button>
                 </div>
             </div>
         </div>`;
     document.body.appendChild(div);
+    if (typeof applyContentControls === 'function') applyContentControls();
     div.addEventListener('click', e => { if(e.target===div||e.target.closest('[data-close]')) closeCart(); });
     div.querySelector('#checkoutBtn').addEventListener('click', () => { closeCart(openCheckout); });
     return div;
@@ -1075,23 +1118,23 @@ function renderCartItems() {
     const body = document.getElementById('cartBody');
     const items = Object.entries(CART);
     if (!items.length) {
-        body.innerHTML = `<div class="cart-empty"><i class="fas fa-shopping-cart"></i><p>${txt('cartEmpty')}</p><a href="shop.html" class="btn btn-primary btn-sm" style="margin-top:1rem;display:inline-flex;" data-close><i class="fas fa-store"></i> ${txt('goToShop')}</a></div>`;
+        body.innerHTML = `<div class="cart-empty"><i class="fas fa-shopping-cart"></i><p>${uiText('cartEmpty')}</p><a href="shop.html" class="btn btn-primary btn-sm" style="margin-top:1rem;display:inline-flex;" data-close><i class="fas fa-store"></i> ${uiText('goToShop')}</a></div>`;
         document.getElementById('cartTotal').textContent = toPersianNum(0);
         return;
     }
     body.innerHTML = items.map(([pid,qty]) => {
         const p = getProduct(+pid); if(!p) return '';
         return `<div class="cart-item">
-            <div class="cart-item-icon${p.image?' has-photo':''}">${p.image?`<img src="${p.image}" alt="${p.name}">`:`<i class="${p.icon}"></i>`}</div>
+            <div class="cart-item-icon${p.image?' has-photo':''}">${p.image?`<img src="${p.image}" alt="${escapeContent(p.name)}">`:`<i class="${p.icon}"></i>`}</div>
             <div class="cart-item-info">
-                <h4>${p.name}</h4>
-                <span>${toPersianNum(qty)} × ${formatPrice(p.price)} تومان</span>
+                <h4>${escapeContent(p.name)}</h4>
+                <span>${toPersianNum(qty)} × ${formatPrice(p.price)} ${escapeContent(txt('currency'))}</span>
             </div>
-            <div class="cart-item-price">${formatPrice(p.price*qty)} تومان</div>
-            <button class="cart-item-remove" data-remove="${p.id}" title="حذف"><i class="fas fa-trash"></i></button>
+            <div class="cart-item-price">${formatPrice(p.price*qty)} ${escapeContent(txt('currency'))}</div>
+            <button class="cart-item-remove" data-remove="${p.id}" title="${escapeContent(txt('remove'))}"><i class="fas fa-trash"></i></button>
         </div>`;
     }).join('');
-    document.getElementById('cartTotal').textContent = formatPrice(cartTotal()) + ' تومان';
+    document.getElementById('cartTotal').textContent = formatPrice(cartTotal()) + ' ' + txt('currency');
     body.querySelectorAll('[data-remove]').forEach(b => b.addEventListener('click', () => {
         delete CART[b.dataset.remove]; saveCart(CART); renderCartItems(); updateCartBadge();
     }));
@@ -1099,6 +1142,7 @@ function renderCartItems() {
 
 // ============== Checkout ==============
 function openCheckout() {
+    if (!SITE.shopEnabled) return;
     if (Object.keys(CART).length === 0) { showToast(txt('cartEmpty'),'error'); return; }
     const overlay = document.getElementById('checkoutModal') || createCheckoutModal();
     renderCheckoutSummary();
@@ -1112,27 +1156,28 @@ function createCheckoutModal() {
         <div class="modal-md">
             <button class="modal-close" data-close><i class="fas fa-times"></i></button>
             <div class="checkout-header">
-                <h2><i class="fas fa-file-invoice"></i> ${txt('checkoutTitle')}</h2>
-                <p>${txt('checkoutDesc')}</p>
+                <h2><i class="fas fa-file-invoice"></i> ${uiText('checkoutTitle')}</h2>
+                <p>${uiText('checkoutDesc')}</p>
             </div>
             <form id="checkoutForm" class="checkout-body">
                 <div class="order-summary" id="orderSummary"></div>
                 <div class="checkout-fields-grid">
-                    <div class="form-group"><label for="chName">${txt('yourName')}</label><input type="text" id="chName" autocomplete="name" maxlength="80" required></div>
-                    <div class="form-group"><label for="chPhone">${txt('yourPhone')}</label><input type="tel" id="chPhone" autocomplete="tel" inputmode="tel" maxlength="20" required placeholder="مثلاً ۰۹۱۲۳۴۵۶۷۸۹"></div>
+                    <div class="form-group"><label for="chName">${uiText('yourName')}</label><input type="text" id="chName" autocomplete="name" maxlength="80" required></div>
+                    <div class="form-group"><label for="chPhone">${uiText('yourPhone')}</label><input type="tel" id="chPhone" autocomplete="tel" inputmode="tel" maxlength="20" required placeholder="${escapeContent(txt('contact_placeholder_cPhone'))}"></div>
                 </div>
                 <div class="form-group telegram-id-field">
-                    <label for="chTelegram"><i class="fab fa-telegram" aria-hidden="true"></i> ${txt('yourTelegramId')}</label>
+                    <label for="chTelegram"><i class="fab fa-telegram" aria-hidden="true"></i> ${uiText('yourTelegramId')}</label>
                     <div class="telegram-input-wrap"><span aria-hidden="true">@</span><input type="text" id="chTelegram" dir="ltr" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="5" maxlength="32" required placeholder="username"></div>
-                    <small>${txt('telegramIdHint')}</small>
+                    <small>${uiText('telegramIdHint')}</small>
                 </div>
-                <div class="form-group"><label for="chEmail">${txt('yourEmail')}</label><input type="email" id="chEmail" autocomplete="email" maxlength="120"></div>
-                <div class="form-group"><label for="chNote">${txt('orderNote')}</label><textarea id="chNote" rows="3" maxlength="600"></textarea></div>
+                <div class="form-group"><label for="chEmail">${uiText('yourEmail')}</label><input type="email" id="chEmail" autocomplete="email" maxlength="120"></div>
+                <div class="form-group"><label for="chNote">${uiText('orderNote')}</label><textarea id="chNote" rows="3" maxlength="600"></textarea></div>
                 <div id="checkoutMsg"></div>
-                <button type="submit" class="btn btn-primary btn-block"><i class="fab fa-telegram"></i> ${txt('sendOrder')}</button>
+                <button type="submit" class="btn btn-primary btn-block"><i class="fab fa-telegram"></i> ${uiText('sendOrder')}</button>
             </form>
         </div>`;
     document.body.appendChild(div);
+    if (typeof applyContentControls === 'function') applyContentControls();
     div.addEventListener('click', e => { if(e.target===div||e.target.closest('[data-close]')) closeCheckout(); });
     div.querySelector('#checkoutForm').addEventListener('submit', handleCheckoutSubmit);
     return div;
@@ -1140,13 +1185,13 @@ function createCheckoutModal() {
 function renderCheckoutSummary() {
     const items = Object.entries(CART);
     let total = 0;
-    let html = `<h4>خلاصه سفارش</h4>`;
+    let html = `<h4>${uiText('orderSummary')}</h4>`;
     items.forEach(([pid,qty]) => {
         const p = getProduct(+pid); if(!p) return;
         total += p.price*qty;
-        html += `<div class="order-item"><span>${p.name} × ${toPersianNum(qty)}</span><span>${formatPrice(p.price*qty)} تومان</span></div>`;
+        html += `<div class="order-item"><span>${escapeContent(p.name)} × ${toPersianNum(qty)}</span><span>${formatPrice(p.price*qty)} ${escapeContent(txt('currency'))}</span></div>`;
     });
-    html += `<div class="order-item"><span>جمع کل</span><span>${formatPrice(total)} تومان</span></div>`;
+    html += `<div class="order-item"><span>${uiText('cartTotal')}</span><span>${formatPrice(total)} ${escapeContent(txt('currency'))}</span></div>`;
     document.getElementById('orderSummary').innerHTML = html;
 }
 function normaliseTelegramUsername(value) {
@@ -1159,6 +1204,7 @@ function normaliseTelegramUsername(value) {
 
 async function handleCheckoutSubmit(e) {
     e.preventDefault();
+    if (!SITE.shopEnabled) return;
     const form = e.currentTarget;
     const name = document.getElementById('chName').value.trim();
     const phone = document.getElementById('chPhone').value.trim();
@@ -1172,14 +1218,14 @@ async function handleCheckoutSubmit(e) {
     // Telegram usernames are 5–32 characters and only contain Latin letters,
     // numbers and underscores. Keeping this strict gives the admin a working link.
     if (!/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(telegramUsername)) {
-        telegramInput.setCustomValidity('آیدی تلگرام معتبر نیست. نمونه صحیح: username یا @username');
+        telegramInput.setCustomValidity(txt('telegramInvalid'));
         telegramInput.reportValidity();
         telegramInput.addEventListener('input', () => telegramInput.setCustomValidity(''), { once: true });
         return;
     }
 
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> در حال ثبت و اتصال به ربات...';
+    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${escapeContent(txt('placingOrder'))}`;
     msgBox.className = '';
     msgBox.textContent = '';
 
@@ -1209,13 +1255,13 @@ async function handleCheckoutSubmit(e) {
         });
         const serverResp = await response.json().catch(() => ({}));
         if (!response.ok || !serverResp.ok) {
-            throw new Error(serverResp.error || 'ثبت سفارش در ربات انجام نشد.');
+            throw new Error(serverResp.code === 'SHOP_UNAVAILABLE' ? txt('shopDisabled_title') : txt('orderError'));
         }
         // The server returns a deep link built only from the username obtained
         // from the bot token that the admin webhooked in the panel. Never fall
         // back to a social/profile link or to browser-side bot settings.
         if (!serverResp.telegramUrl || !/^https:\/\/t\.me\/[A-Za-z0-9_]+\?start=/.test(serverResp.telegramUrl)) {
-            throw new Error('ربات سفارش‌ها هنوز توسط ادمین فعال نشده است.');
+            throw new Error(txt('botUnavailable'));
         }
 
         SITE.orders = SITE.orders || [];
@@ -1225,15 +1271,15 @@ async function handleCheckoutSubmit(e) {
         saveCart(CART);
 
         msgBox.className = 'form-message success';
-        msgBox.textContent = '✓ فاکتور ثبت شد؛ در حال انتقال به ربات متصل به سایت...';
+        msgBox.textContent = txt('invoiceReady');
         setTimeout(() => window.location.assign(serverResp.telegramUrl), 850);
     } catch (error) {
         msgBox.className = 'form-message error';
         msgBox.textContent = error && error.message
             ? error.message
-            : 'ارتباط با ربات برقرار نشد. لطفاً کمی بعد دوباره تلاش کنید.';
+            : txt('orderError');
         btn.disabled = false;
-        btn.innerHTML = `<i class="fab fa-telegram"></i> ${txt('sendOrder')}`;
+        btn.innerHTML = `<i class="fab fa-telegram"></i> ${uiText('sendOrder')}`;
     }
 }
 
@@ -1252,11 +1298,11 @@ function showToast(text, type='success') {
 
 // ============== Socials & Contact form & Counters (same as before) ==============
 function renderSocials() {
-    const sig = arrSig(SITE.socials, s => [s.id, s.icon || '', shash(s.name), shash(s.url), s.color || ''].join(','));
+    const sig = arrSig(contentItems('socials'), s => [s.id, s.icon || '', shash(s.name), shash(s.url), s.color || ''].join(','));
     document.querySelectorAll('[data-role="socials"]').forEach(c => {
         if (c.dataset.renderSig === sig && c.firstChild) return;
         c.dataset.renderSig = sig;
-        c.innerHTML = SITE.socials.map(s => `<a href="${s.url||'#'}" ${s.url&&s.url.startsWith('http')?'target="_blank"':''} title="${s.name}"><i class="${s.icon}"></i></a>`).join('');
+        c.innerHTML = contentItems('socials').map(s => `<a href="${s.url||'#'}" ${s.url&&s.url.startsWith('http')?'target="_blank"':''} title="${escapeContent(s.name)}"><i class="${s.icon}"></i></a>`).join('');
     });
 }
 function initContactForm() {
@@ -1271,13 +1317,13 @@ function initContactForm() {
         const message = document.getElementById('cMessage')?.value || '';
         SITE.messages.push({id:nextId(SITE.messages), name, email, phone, subject, message, date:new Date().toISOString(), read:false});
         saveData();
-        if (msg) { msg.className='form-message success'; msg.textContent=txt('formSuccess'); }
+        if (msg) { msg.className='form-message success'; msg.textContent=txt('formSuccess'); msg.classList.toggle('content-text-hidden',!isVisible('text:formSuccess')); }
         form.reset();
         setTimeout(()=>{ if(msg){msg.className='form-message';msg.textContent='';} }, 5000);
     });
 }
 function initCounters() {
-    const counters=document.querySelectorAll('.stat-number'); if(!counters.length)return;
+    const counters=document.querySelectorAll('.stat-number[data-target]'); if(!counters.length)return;
     const anim=el=>{const t=+el.getAttribute('data-target');let c=0;const s=t/50;const tk=()=>{c+=s;if(c<t){el.textContent=toPersianNum(Math.ceil(c));requestAnimationFrame(tk);}else el.textContent=toPersianNum(t);};tk();};
     if (typeof IntersectionObserver === 'undefined') { counters.forEach(anim); return; }
     const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){anim(e.target);obs.unobserve(e.target);}});},{threshold:0.5});
@@ -1357,7 +1403,7 @@ function typeInto(el, text, speed, done) {
     if (!el) { if (done) done(); return; }
     const reduce = prefersReducedMotion();
     text = String(text == null ? '' : text);
-    if (reduce || !text) { el.textContent = text; el.classList.remove('is-typing', 'typing-caret'); if (done) done(); return; }
+    if (reduce || !text) { el.textContent = text; el.dataset.typed = 'done'; el.classList.remove('is-typing', 'typing-caret'); if (done) done(); return; }
     el.classList.add('is-typing', 'typing-caret');
     el.textContent = '';
     let i = 0, timer = null;
@@ -1366,6 +1412,7 @@ function typeInto(el, text, speed, done) {
         el.classList.remove('is-typing');
         el.classList.remove('typing-caret');
         el.dataset.typed = 'done';
+        if (el.dataset.text) el.textContent = txt(el.dataset.text);
     };
     const tick = () => {
         // Two chars per tick: halves DOM writes + layouts on long paragraphs
@@ -1414,31 +1461,31 @@ function initTypewriter() {
 function renderFeaturesGrid() {
     const fg = document.getElementById('featuresGrid');
     if (!fg) return;
-    const sig = arrSig(SITE.features, cardSig);
+    const sig = arrSig(contentItems('features'), cardSig);
     if (fg.dataset.renderSig === sig && fg.firstChild) return;
     fg.dataset.renderSig = sig;
-    fg.innerHTML = SITE.features.map(f => `
-        <div class="feature-card">
-            <div class="feature-icon${f.image?' has-photo':''}">${f.image?`<img src="${f.image}" alt="${f.title}" loading="lazy">`:`<i class="${f.icon}"></i>`}</div>
-            <h3>${f.title}</h3>
-            <p>${f.desc}</p>
+    fg.innerHTML = contentItems('features').map(f => `
+        <div class="feature-card" data-item-list="features" data-item-id="${f.id}">
+            <div class="feature-icon${f.image?' has-photo':''}">${f.image?`<img src="${f.image}" alt="${escapeContent(f.title)}" loading="lazy">`:`<i class="${f.icon}"></i>`}</div>
+            <h3>${escapeContent(f.title)}</h3>
+            <p>${escapeContent(f.desc)}</p>
         </div>`).join('');
 }
 function renderProjectsGrid() {
     const grid = document.getElementById('projectsGrid');
     if (!grid) return;
-    const sig = arrSig(SITE.projects, p => [p.id, p.icon || '', shash(p.tag), shash(p.title), shash(p.desc), shash(p.tech), shash(p.longDescription), imgSig(p.image)].join(','));
+    const sig = arrSig(contentItems('projects'), p => [p.id, p.icon || '', shash(p.tag), shash(p.title), shash(p.desc), shash(p.tech), shash(p.longDescription), imgSig(p.image)].join(','));
     if (grid.dataset.renderSig === sig && grid.firstChild) return;
     grid.dataset.renderSig = sig;
-    grid.innerHTML = SITE.projects.map(p => `
-        <div class="project-card" data-project="${p.id}" tabindex="0" role="button" aria-label="توضیحات بیشتر درباره ${p.title||''}">
-            <div class="project-image${p.image?' has-photo':''}">${p.image?`<img src="${p.image}" alt="${p.title}" loading="lazy">`:`<i class="${p.icon}"></i>`}<span class="project-image-shine" aria-hidden="true"></span></div>
+    grid.innerHTML = contentItems('projects').map(p => `
+        <div class="project-card" data-item-list="projects" data-item-id="${p.id}" data-project="${p.id}" tabindex="0" role="button" aria-label="${escapeContent(txt('more'))}: ${escapeContent(p.title || '')}">
+            <div class="project-image${p.image?' has-photo':''}">${p.image?`<img src="${p.image}" alt="${escapeContent(p.title)}" loading="lazy">`:`<i class="${p.icon}"></i>`}<span class="project-image-shine" aria-hidden="true"></span></div>
             <div class="project-content">
-                <span class="project-tag">${p.tag||''}</span>
-                <h3>${p.title||''}</h3>
-                <p>${p.desc||''}</p>
-                <div class="project-tech">${(p.tech||'').split(',').filter(t=>t.trim()).map(t=>`<span>${t.trim()}</span>`).join('')}</div>
-                <span class="project-more">توضیحات بیشتر <i class="fas fa-chevron-left"></i></span>
+                <span class="project-tag">${escapeContent(p.tag||'')}</span>
+                <h3>${escapeContent(p.title||'')}</h3>
+                <p>${escapeContent(p.desc||'')}</p>
+                <div class="project-tech">${(p.tech||'').split(',').filter(t=>t.trim()).map(t=>`<span>${escapeContent(t.trim())}</span>`).join('')}</div>
+                <span class="project-more">${uiText('more')} <i class="fas fa-chevron-left"></i></span>
             </div>
         </div>`).join('');
 }
@@ -1449,14 +1496,15 @@ function techList(tech) {
     return (tech||'').split(',').map(t=>t.trim()).filter(Boolean);
 }
 function openProjectDetail(pid, sourceEl) {
-    const p = SITE.projects.find(x => x.id === pid);
+    const p = contentItems('projects').find(x => x.id === pid);
     if (!p) return;
     currentProjectId = pid;
     const overlay = document.getElementById('projectModal') || createProjectModal();
+    overlay.dataset.itemList='projects'; overlay.dataset.itemId=String(pid);
     const hero = overlay.querySelector('.project-detail-hero');
     hero.classList.toggle('has-photo', !!p.image);
     hero.innerHTML = p.image
-        ? `<img src="${p.image}" alt="${p.title}"><span class="project-detail-hero-veil" aria-hidden="true"></span>`
+        ? `<img src="${p.image}" alt="${escapeContent(p.title)}"><span class="project-detail-hero-veil" aria-hidden="true"></span>`
         : `<i class="${p.icon||'fas fa-briefcase'}"></i><span class="project-detail-hero-veil" aria-hidden="true"></span>`;
     const tag = overlay.querySelector('.project-detail-tag');
     tag.textContent = p.tag || '';
@@ -1470,7 +1518,7 @@ function openProjectDetail(pid, sourceEl) {
     const tech = techList(p.tech);
     const techBox = overlay.querySelector('.project-detail-tech');
     techBox.innerHTML = tech.length
-        ? `<h4><i class="fas fa-layer-group"></i> تکنولوژی‌های استفاده شده</h4><div class="project-tech">${tech.map((t,i)=>`<span style="--i:${i}">${t}</span>`).join('')}</div>`
+        ? `<h4><i class="fas fa-layer-group"></i> ${uiText('technologies')}</h4><div class="project-tech">${tech.map((t,i)=>`<span style="--i:${i}">${escapeContent(t)}</span>`).join('')}</div>`
         : '';
     overlay.querySelectorAll('[data-project-open-shop]').forEach(b => {
         b.style.display = SITE.shopEnabled ? '' : 'none';
@@ -1481,6 +1529,7 @@ function openProjectDetail(pid, sourceEl) {
         void el.offsetWidth;
         el.style.animation = '';
     });
+    if (typeof applyContentControls === 'function') applyContentControls();
     openAnimatedOverlay(overlay, sourceEl || overlay.__source);
 }
 function closeProjectDetail(done) {
@@ -1492,7 +1541,7 @@ function createProjectModal() {
     div.id = 'projectModal';
     div.innerHTML = `
         <div class="modal-lg project-modal">
-            <button class="modal-close" data-close aria-label="بستن"><i class="fas fa-times"></i></button>
+            <button class="modal-close" data-close aria-label="${escapeContent(txt('close'))}"><i class="fas fa-times"></i></button>
             <div class="project-detail-hero reveal-item" style="--i:0"></div>
             <div class="project-detail-body">
                 <span class="project-detail-tag reveal-item" style="--i:1"></span>
@@ -1501,13 +1550,14 @@ function createProjectModal() {
                 <div class="project-detail-long reveal-item" style="--i:4"></div>
                 <div class="project-detail-tech reveal-item" style="--i:5"></div>
                 <div class="project-detail-actions reveal-item" style="--i:6">
-                    <a href="contact.html" class="btn btn-primary"><i class="fas fa-paper-plane"></i> درخواست پروژه مشابه</a>
-                    <button type="button" class="btn btn-outline" data-project-open-shop><i class="fas fa-shopping-bag"></i> دیدن سرویس‌های فروشگاه</button>
-                    <button type="button" class="btn btn-outline" data-close><i class="fas fa-xmark"></i> بستن</button>
+                    <a href="contact.html" class="btn btn-primary"><i class="fas fa-paper-plane"></i> ${uiText('similarProject')}</a>
+                    <button type="button" class="btn btn-outline" data-project-open-shop><i class="fas fa-shopping-bag"></i> ${uiText('shopServices')}</button>
+                    <button type="button" class="btn btn-outline" data-close><i class="fas fa-xmark"></i> ${uiText('close')}</button>
                 </div>
             </div>
         </div>`;
     document.body.appendChild(div);
+    if (typeof applyContentControls === 'function') applyContentControls();
     div.addEventListener('click', e => {
         if (e.target.closest('[data-project-open-shop]')) {
             closeProjectDetail(() => window.location.assign('shop.html'));
@@ -1534,37 +1584,37 @@ document.addEventListener('keydown', e => {
 function renderSkillsGrid() {
     const el = document.getElementById('skillsGrid');
     if (!el) return;
-    const sig = arrSig(SITE.skills, s => [s.id, s.icon || '', shash(s.name)].join(','));
+    const sig = arrSig(contentItems('skills'), s => [s.id, s.icon || '', shash(s.name)].join(','));
     if (el.dataset.renderSig === sig && el.firstChild) return;
     el.dataset.renderSig = sig;
-    el.innerHTML = SITE.skills.map(s => `<div class="skill-tag"><i class="${s.icon}"></i> ${s.name}</div>`).join('');
+    el.innerHTML = contentItems('skills').map(s => `<div class="skill-tag"><i class="${s.icon}"></i> ${escapeContent(s.name)}</div>`).join('');
 }
 function renderWhymeGrid() {
     const el = document.getElementById('whymeGrid');
     if (!el) return;
-    const sig = arrSig(SITE.whyme, cardSig);
+    const sig = arrSig(contentItems('whyme'), cardSig);
     if (el.dataset.renderSig === sig && el.firstChild) return;
     el.dataset.renderSig = sig;
-    el.innerHTML = SITE.whyme.map(w => `
-        <div class="feature-card">
-            <div class="feature-icon${w.image?' has-photo':''}">${w.image?`<img src="${w.image}" alt="${w.title}" loading="lazy">`:`<i class="${w.icon}"></i>`}</div>
-            <h3>${w.title}</h3>
-            <p>${w.desc}</p>
+    el.innerHTML = contentItems('whyme').map(w => `
+        <div class="feature-card" data-item-list="whyme" data-item-id="${w.id}">
+            <div class="feature-icon${w.image?' has-photo':''}">${w.image?`<img src="${w.image}" alt="${escapeContent(w.title)}" loading="lazy">`:`<i class="${w.icon}"></i>`}</div>
+            <h3>${escapeContent(w.title)}</h3>
+            <p>${escapeContent(w.desc)}</p>
         </div>`).join('');
 }
 function renderContactCards() {
     const el = document.getElementById('contactInfo');
     if (!el) return;
-    const sig = arrSig(SITE.contactCards, c => [c.id, c.icon || '', shash(c.title), shash(c.value), shash(c.url), shash(c.hint)].join(','));
+    const sig = arrSig(contentItems('contactCards'), c => [c.id, c.icon || '', shash(c.title), shash(c.value), shash(c.url), shash(c.hint)].join(','));
     if (el.dataset.renderSig === sig && el.firstChild) return;
     el.dataset.renderSig = sig;
-    el.innerHTML = SITE.contactCards.map(c => `
-        <div class="contact-card">
+    el.innerHTML = contentItems('contactCards').map(c => `
+        <div class="contact-card" data-item-list="contactCards" data-item-id="${c.id}">
             <div class="contact-icon"><i class="${c.icon}"></i></div>
             <div class="contact-detail">
-                <h4>${c.title}</h4>
-                ${c.url ? `<a href="${c.url}" ${c.url.startsWith('http')?'target="_blank"':''}>${c.value}</a>` : `<span>${c.value}</span>`}
-                ${c.hint?`<p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.3rem;">${c.hint}</p>`:''}
+                <h4>${escapeContent(c.title)}</h4>
+                ${c.url ? `<a href="${c.url}" ${c.url.startsWith('http')?'target="_blank"':''}>${escapeContent(c.value)}</a>` : `<span>${escapeContent(c.value)}</span>`}
+                ${c.hint?`<p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.3rem;">${escapeContent(c.hint)}</p>`:''}
             </div>
         </div>`).join('');
 }
@@ -1593,11 +1643,11 @@ function renderPhotos() {
 function applyTexts() {
     document.querySelectorAll('[data-text]').forEach(el => {
         const k = el.getAttribute('data-text');
-        if (SITE.texts[k] === undefined) return;
+        if (SITE.texts[k] === undefined && CONTENT_FA[k] === undefined) return;
         // Never wipe a half-typed headline while the typewriter is running.
         if (el.classList.contains('is-typing')) return;
         if (el.dataset.typingStarted === '1' && el.dataset.typed !== 'done') return;
-        if (el.textContent !== SITE.texts[k]) el.textContent = SITE.texts[k];
+        if (el.textContent !== txt(k)) el.textContent = txt(k);
     });
     document.querySelectorAll('[data-visible]').forEach(el => {
         el.style.display = isVisible(el.getAttribute('data-visible')) ? '' : 'none';
@@ -1616,6 +1666,7 @@ function renderSitePage() {
     refreshShopEverywhere();
     initMotionEffects();
     decorateCards();
+    if (typeof applyContentControls === 'function') applyContentControls();
 }
 
 // ============== Cards: staggered neon motion ==============
@@ -1668,7 +1719,7 @@ function initMotionBudget() {
     } catch (e) { /* ignore */ }
 }
 
-window.SITE=SITE; window.saveData=saveData; window.CAT_NAME_MAP=CAT_NAME_MAP;
+window.SITE=SITE; window.saveData=saveData;
 window.refreshShopEverywhere=refreshShopEverywhere;
 window.openProjectDetail=openProjectDetail; window.closeProjectDetail=closeProjectDetail;
 window.initShopSlider=initShopSlider; window.decorateCards=decorateCards; window.observeCardFx=observeCardFx; window.initMotionBudget=initMotionBudget;

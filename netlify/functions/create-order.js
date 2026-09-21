@@ -2,6 +2,7 @@
 const fetch = require('node-fetch');
 const { getTelegramConfig } = require('./lib/telegram-config');
 const { loadOrders, saveOrders } = require('./lib/orders');
+const { readData } = require('./site-data');
 
 function toPersian(n) {
   const p = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
@@ -78,11 +79,21 @@ exports.handler = async (event) => {
 
   try {
     const payload = JSON.parse(event.body || '{}');
+    const site = await readData();
+    if (site?.shopEnabled === false || site?.visible?.checkoutForm === false || site?.visible?.checkoutSubmit === false) {
+      return respond(503, {ok:false, code:'SHOP_UNAVAILABLE', error:'فروشگاه در حال بروزرسانی است.'});
+    }
+    // Hidden optional identity fields may be omitted, but the Telegram ID
+    // remains required for invoice delivery and customer communication.
+    const nameRequired = site?.visible?.checkoutName !== false;
+    const phoneRequired = site?.visible?.checkoutPhone !== false;
+    if (!nameRequired) payload.name = '';
+    if (!phoneRequired) payload.phone = '';
     const orderId = clean(payload.id, 80);
     const telegramUsername = normaliseTelegramUsername(payload.telegramId);
     const rawItems = Array.isArray(payload.items) ? payload.items : [];
 
-    if (!/^ORD-[A-Z0-9]{4,36}$/.test(orderId) || !clean(payload.name, 80) || !clean(payload.phone, 30) || !rawItems.length) {
+    if (!/^ORD-[A-Z0-9]{4,36}$/.test(orderId) || (nameRequired && !clean(payload.name, 80)) || (phoneRequired && !clean(payload.phone, 30)) || !rawItems.length) {
       return respond(400, { ok: false, error: 'اطلاعات ضروری سفارش کامل نیست.' });
     }
     if (!telegramUsernameIsValid(telegramUsername)) {
@@ -161,8 +172,8 @@ exports.handler = async (event) => {
     const calculatedTotal = items.reduce((sum, item) => sum + (item.price * item.qty), 0);
     const order = {
       id: orderId,
-      name: clean(payload.name, 80),
-      phone: clean(payload.phone, 30),
+      name: clean(payload.name, 80) || '—',
+      phone: clean(payload.phone, 30) || '—',
       telegramId: `@${telegramUsername}`,
       email: clean(payload.email, 120),
       note: clean(payload.note, 600),
