@@ -96,3 +96,6 @@ Object.entries(CONTENT_UI).forEach(([key,values]) => {
     CONTENT_FA[key]=values[0]; CONTENT_EN[key]=values[1];
     CONTENT_SECTIONS[['more','technologies','similarProject','shopServices'].includes(key)?'projects':'shop'].texts[key]=values[0];
 });
+// Lightbox strings (not exposed in the CMS editor).
+Object.assign(CONTENT_FA, { zoomImage: 'بزرگنمایی تصویر', zoomHint: 'اسکرول یا دابل‌کلیک: بزرگنمایی • کشیدن: جابه‌جایی • Esc: بستن' });
+Object.assign(CONTENT_EN, { zoomImage: 'Zoom image', zoomHint: 'Scroll or double-click to zoom • Drag to pan • Esc to close' });

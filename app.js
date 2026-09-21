@@ -950,6 +950,10 @@ function maintenanceScreenHtml() {
 function applyMaintenanceMode() {
     if (!document.body.classList.contains('public-site')) return;
     const on = SITE.maintenanceMode === true;
+    // The pre-paint gate adds these classes to <html>; once the real mode is
+    // known they must go, otherwise a stale flag keeps body children hidden.
+    document.documentElement.classList.remove('maintenance-gate', 'maintenance-checking');
+    try { localStorage.setItem(MAINTENANCE_CACHE_KEY + '_brand', txt('brand')); } catch (e) { /* private mode */ }
     document.body.classList.toggle('maintenance-on', on);
     const screen = document.getElementById('maintenanceScreen');
     const gate = document.getElementById('maintenanceGate');
@@ -1577,7 +1581,7 @@ function mediaSlidesHtml(p, opts = {}) {
     if (!slides.length) return '';
     const multiple = slides.length > 1;
     return `<div class="media-slider${multiple ? '' : ' is-single'}${opts.hero ? ' media-slider--hero' : ''}" data-media-slider${multiple && opts.autoplay ? ` data-autoplay="${opts.autoplay}"` : ''}>
-        ${slides.map((src, i) => `<div class="media-slide${i === 0 ? ' is-active' : ''}"${i ? ' aria-hidden="true"' : ''}><img src="${src}" alt="${escapeContent(p.title || p.name || '')}" loading="lazy"></div>`).join('')}
+        ${slides.map((src, i) => `<div class="media-slide${i === 0 ? ' is-active' : ''}"${i ? ' aria-hidden="true"' : ''}><img src="${src}" alt="${escapeContent(p.title || p.name || '')}" loading="lazy"><button type="button" class="media-zoom" data-media-zoom="${i}" aria-label="${escapeContent(txt('zoomImage'))}" title="${escapeContent(txt('zoomImage'))}"><i class="fas fa-magnifying-glass-plus"></i></button></div>`).join('')}
         ${multiple ? `
         <div class="media-dots">${slides.map((_, i) => `<button type="button" class="media-dot${i === 0 ? ' is-active' : ''}" data-media-dot="${i}" aria-label="اسلاید ${toPersianNum(i + 1)}"></button>`).join('')}</div>
         <span class="media-count" aria-hidden="true"><i class="fas fa-images"></i> ${toPersianNum(slides.length)}</span>
@@ -1647,6 +1651,181 @@ function initMediaSliders(scope) {
         schedule();
     });
 }
+
+// ---- Fullscreen lightbox: every gallery slide can be opened at full size,
+// zoomed (wheel / pinch / buttons / double-click) and panned while zoomed. ----
+const MEDIA_LB = { list: [], index: 0, scale: 1, tx: 0, ty: 0, open: false, lastFocus: null };
+function mediaLightboxEl() {
+    let lb = document.getElementById('mediaLightbox');
+    if (lb) return lb;
+    lb = document.createElement('div');
+    lb.id = 'mediaLightbox';
+    lb.className = 'media-lightbox';
+    lb.setAttribute('role', 'dialog');
+    lb.setAttribute('aria-modal', 'true');
+    lb.innerHTML = `
+        <div class="ml-backdrop" data-ml-close></div>
+        <figure class="ml-stage"><img class="ml-img" alt=""></figure>
+        <div class="ml-topbar">
+            <span class="ml-title"></span>
+            <span class="ml-count"></span>
+            <div class="ml-actions">
+                <button type="button" data-ml-zoom="out" title="-"><i class="fas fa-magnifying-glass-minus"></i></button>
+                <button type="button" data-ml-zoom="reset" title="100%"><i class="fas fa-rotate-left"></i></button>
+                <button type="button" data-ml-zoom="in" title="+"><i class="fas fa-magnifying-glass-plus"></i></button>
+                <button type="button" class="ml-close" data-ml-close aria-label="${escapeContent(txt('close'))}"><i class="fas fa-xmark"></i></button>
+            </div>
+        </div>
+        <button type="button" class="ml-arrow ml-arrow--prev" data-ml-prev aria-label="${escapeContent(txt('previousSlide'))}"><i class="fas fa-chevron-right"></i></button>
+        <button type="button" class="ml-arrow ml-arrow--next" data-ml-next aria-label="${escapeContent(txt('nextSlide'))}"><i class="fas fa-chevron-left"></i></button>
+        <p class="ml-hint" aria-hidden="true"><i class="fas fa-arrows-up-down-left-right"></i><span data-text="zoomHint">${escapeContent(txt('zoomHint'))}</span></p>`;
+    document.body.appendChild(lb);
+    if (typeof applyContentControls === 'function') applyContentControls();
+
+    const img = lb.querySelector('.ml-img');
+    const applyTransform = () => {
+        img.style.transform = `translate(${MEDIA_LB.tx}px, ${MEDIA_LB.ty}px) scale(${MEDIA_LB.scale})`;
+        img.classList.toggle('is-pannable', MEDIA_LB.scale > 1);
+    };
+    const clampPan = () => {
+        const limit = Math.max(0, (MEDIA_LB.scale - 1) / 2) ;
+        const rx = Math.max(60, img.clientWidth * limit), ry = Math.max(60, img.clientHeight * limit);
+        MEDIA_LB.tx = Math.min(rx, Math.max(-rx, MEDIA_LB.tx));
+        MEDIA_LB.ty = Math.min(ry, Math.max(-ry, MEDIA_LB.ty));
+    };
+    const setZoom = (scale, cx, cy) => {
+        const old = MEDIA_LB.scale;
+        const next = Math.min(6, Math.max(1, scale));
+        if (cx != null && next !== old) {
+            const r = img.getBoundingClientRect();
+            const px = cx - (r.left + r.width / 2), py = cy - (r.top + r.height / 2);
+            const k = next / old;
+            MEDIA_LB.tx = px - (px - MEDIA_LB.tx) * k;
+            MEDIA_LB.ty = py - (py - MEDIA_LB.ty) * k;
+        }
+        MEDIA_LB.scale = next;
+        if (next === 1) { MEDIA_LB.tx = 0; MEDIA_LB.ty = 0; }
+        clampPan(); applyTransform();
+        lb.querySelector('[data-ml-zoom="reset"]').setAttribute('aria-label', `${Math.round(next * 100)}%`);
+    };
+    MEDIA_LB.setZoom = setZoom;
+    MEDIA_LB.show = i => {
+        const n = MEDIA_LB.list.length;
+        MEDIA_LB.index = ((i % n) + n) % n;
+        MEDIA_LB.scale = 1; MEDIA_LB.tx = 0; MEDIA_LB.ty = 0;
+        img.src = MEDIA_LB.list[MEDIA_LB.index];
+        applyTransform();
+        lb.querySelector('.ml-count').textContent = `${toPersianNum(MEDIA_LB.index + 1)} / ${toPersianNum(n)}`;
+        const multi = n > 1;
+        lb.querySelectorAll('.ml-arrow').forEach(a => { a.style.display = multi ? '' : 'none'; });
+    };
+    lb.addEventListener('click', e => {
+        if (e.target.closest('[data-ml-close]')) return closeMediaLightbox();
+        const z = e.target.closest('[data-ml-zoom]');
+        if (z) {
+            const r = img.getBoundingClientRect();
+            const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+            if (z.dataset.mlZoom === 'in') setZoom(MEDIA_LB.scale * 1.35, cx, cy);
+            else if (z.dataset.mlZoom === 'out') setZoom(MEDIA_LB.scale / 1.35, cx, cy);
+            else setZoom(1);
+            return;
+        }
+        if (e.target.closest('[data-ml-prev]')) return MEDIA_LB.show(MEDIA_LB.index - 1);
+        if (e.target.closest('[data-ml-next]')) return MEDIA_LB.show(MEDIA_LB.index + 1);
+    });
+    lb.addEventListener('wheel', e => {
+        e.preventDefault();
+        setZoom(MEDIA_LB.scale * (e.deltaY < 0 ? 1.12 : 1 / 1.12), e.clientX, e.clientY);
+    }, { passive: false });
+    lb.addEventListener('dblclick', e => {
+        if (e.target.closest('.ml-topbar, .ml-arrow')) return;
+        setZoom(MEDIA_LB.scale > 1 ? 1 : 2.6, e.clientX, e.clientY);
+    });
+    // drag to pan + two-finger pinch
+    const pointers = new Map();
+    let pinchDist = 0;
+    lb.addEventListener('pointerdown', e => {
+        if (e.target.closest('.ml-topbar, .ml-arrow')) return;
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pointers.size === 2) {
+            const [a, b] = [...pointers.values()];
+            pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+        }
+        img.setPointerCapture && img.setPointerCapture(e.pointerId);
+    });
+    lb.addEventListener('pointermove', e => {
+        if (!pointers.has(e.pointerId)) return;
+        const prev = pointers.get(e.pointerId);
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pointers.size === 2) {
+            const [a, b] = [...pointers.values()];
+            const d = Math.hypot(a.x - b.x, a.y - b.y);
+            if (pinchDist > 0) setZoom(MEDIA_LB.scale * (d / pinchDist), (a.x + b.x) / 2, (a.y + b.y) / 2);
+            pinchDist = d;
+        } else if (MEDIA_LB.scale > 1) {
+            MEDIA_LB.tx += e.clientX - prev.x;
+            MEDIA_LB.ty += e.clientY - prev.y;
+            clampPan(); applyTransform();
+        }
+    });
+    const dropPointer = e => { pointers.delete(e.pointerId); pinchDist = 0; };
+    lb.addEventListener('pointerup', dropPointer);
+    lb.addEventListener('pointercancel', dropPointer);
+    return lb;
+}
+function openMediaLightbox(srcs, index, title) {
+    if (!srcs || !srcs.length) return;
+    const lb = mediaLightboxEl();
+    MEDIA_LB.list = srcs.slice();
+    MEDIA_LB.lastFocus = document.activeElement;
+    lb.querySelector('.ml-title').textContent = title || '';
+    lb.querySelector('.ml-img').alt = title || '';
+    MEDIA_LB.show(index || 0);
+    lb.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+    MEDIA_LB.open = true;
+    lb.querySelector('.ml-close').focus({ preventScroll: true });
+}
+function closeMediaLightbox() {
+    const lb = document.getElementById('mediaLightbox');
+    if (!lb) return;
+    lb.classList.remove('is-open');
+    MEDIA_LB.open = false;
+    if (!document.querySelector('.overlay.is-open')) document.body.style.overflow = '';
+    if (MEDIA_LB.lastFocus && MEDIA_LB.lastFocus.focus) MEDIA_LB.lastFocus.focus({ preventScroll: true });
+}
+document.addEventListener('keydown', e => {
+    if (!MEDIA_LB.open || !MEDIA_LB.setZoom) return;
+    const rtl = (document.documentElement.getAttribute('dir') || 'rtl') === 'rtl';
+    if (e.key === 'Escape') { e.stopImmediatePropagation(); closeMediaLightbox(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); MEDIA_LB.show(MEDIA_LB.index + (rtl ? 1 : -1)); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); MEDIA_LB.show(MEDIA_LB.index + (rtl ? -1 : 1)); }
+    else if (e.key === '+' || e.key === '=') MEDIA_LB.setZoom(MEDIA_LB.scale * 1.3);
+    else if (e.key === '-') MEDIA_LB.setZoom(MEDIA_LB.scale / 1.3);
+    else if (e.key === '0') MEDIA_LB.setZoom(1);
+});
+// One delegated listener wires every zoom button (cards, hero sliders, shop).
+document.addEventListener('click', e => {
+    const z = e.target.closest('[data-media-zoom]');
+    if (!z) return;
+    e.preventDefault(); e.stopPropagation();
+    const root = z.closest('[data-media-slider]');
+    if (!root) return;
+    const srcs = Array.from(root.querySelectorAll('.media-slide img')).map(im => im.getAttribute('src'));
+    const scope = root.closest('.project-card, .product-card, .project-modal, .modal-lg, .modal-md');
+    const title = scope ? (scope.querySelector('.project-detail-title, h3, .product-title') || {}).textContent || '' : '';
+    openMediaLightbox(srcs, parseInt(z.dataset.mediaZoom, 10) || 0, String(title).trim());
+}, true);
+// Clicking the big hero image inside the project modal also opens full view.
+document.addEventListener('click', e => {
+    const im = e.target.closest('.overlay--project .media-slide img');
+    if (!im || e.target.closest('[data-media-zoom]')) return;
+    e.stopPropagation();
+    const root = im.closest('[data-media-slider]');
+    const srcs = Array.from(root.querySelectorAll('.media-slide img')).map(x => x.getAttribute('src'));
+    const idx = Array.from(root.querySelectorAll('.media-slide img')).indexOf(im);
+    openMediaLightbox(srcs, Math.max(0, idx), (document.querySelector('.project-detail-title') || {}).textContent || '');
+});
 
 function renderProjectsGrid() {
     const grid = document.getElementById('projectsGrid');
