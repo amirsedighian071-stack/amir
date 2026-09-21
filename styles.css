@@ -2634,7 +2634,7 @@ a.shop-entry-disabled:hover { transform: none; box-shadow: none; }
 .mo-ring--inner { inset: 13px; border: 2px solid transparent; border-top-color: var(--primary); border-bottom-color: var(--secondary); animation: maintenance-spin 2.8s linear infinite reverse; }
 .mo-glow { position: absolute; inset: 24px; border-radius: 50%; background: var(--gradient-soft); filter: blur(2px); animation: mo-pulse 2.8s ease-in-out infinite; }
 .mo-core { position: relative; width: 62px; height: 62px; display: grid; place-items: center; border-radius: 50%; background: var(--bg-elevated); border: 1px solid var(--border); box-shadow: 0 0 0 7px color-mix(in srgb, var(--primary) 12%, transparent), 0 12px 28px rgba(0,0,0,.25); }
-.mo-core i { margin: 0; font-size: 1.55rem; color: var(--primary); background: var(--gradient); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: maintenance-rock 3s ease-in-out infinite; }
+.mo-core i { margin: 0; font-size: 1.55rem; color: var(--primary); filter: drop-shadow(0 2px 10px rgba(99,102,241,.5)); animation: maintenance-rock 3s ease-in-out infinite; }
 .mo-spark { position: absolute; width: 6px; height: 6px; border-radius: 50%; background: var(--secondary); opacity: .75; animation: mo-float 3.4s ease-in-out infinite; }
 .mo-spark--1 { top: 4%; left: 12%; background: var(--primary); animation-delay: -.6s; }
 .mo-spark--2 { bottom: 8%; right: 6%; animation-delay: -1.5s; }
@@ -2716,6 +2716,44 @@ a.shop-entry-disabled:hover { transform: none; box-shadow: none; }
 .project-detail-hero .media-count { top: .8rem; inset-inline-start: .8rem; }
 .project-detail-hero .media-slider { position: absolute; inset: 0; }
 
+/* Zoom affordance on gallery slides: click the photo (or the button) to open it full-size */
+.media-slide img { cursor: zoom-in; }
+.media-zoom { position: absolute; bottom: .55rem; inset-inline-end: .55rem; z-index: 4; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: color-mix(in srgb, var(--bg-card) 80%, transparent); color: var(--text); cursor: pointer; opacity: 0; transition: opacity .25s, transform .2s, color .2s; backdrop-filter: blur(6px); display: grid; place-items: center; font-size: .85rem; }
+.media-slider:hover .media-zoom, .media-slider:focus-within .media-zoom { opacity: 1; }
+.media-zoom:hover { color: var(--primary); transform: scale(1.08); }
+@media (hover: none) { .media-zoom { opacity: 1; } }
+.project-detail-hero .media-zoom { bottom: .9rem; inset-inline-end: .9rem; }
+
+/* ========================================================================
+   Screenshot lightbox (full-image viewer above every other overlay)
+   ======================================================================== */
+.overlay--lightbox { z-index: 10003; background: rgba(4,6,12,.86); }
+.overlay--lightbox .modal-lg.lightbox-panel { max-width: min(1180px, 96vw); max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; background: #0b1220; border: 1px solid var(--border); }
+.lightbox-head { display: flex; align-items: center; gap: .75rem; padding: .6rem .9rem; border-bottom: 1px solid var(--border); color: #e9eefb; }
+.lightbox-cap { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: .95rem; }
+.lightbox-count { color: #8fa0c2; font-size: .85rem; white-space: nowrap; }
+.lightbox-tools { display: flex; align-items: center; gap: .4rem; margin-inline-start: auto; }
+.lightbox-btn { min-width: 38px; height: 38px; padding: 0 .5rem; border-radius: .65rem; border: 1px solid var(--border); background: transparent; color: #e9eefb; cursor: pointer; font-size: .9rem; transition: background .2s, transform .15s; }
+.lightbox-btn:hover { background: rgba(255,255,255,.08); }
+.lightbox-scale { font-variant-numeric: tabular-nums; font-size: .8rem; font-weight: 700; }
+.lightbox-stage { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; overflow: hidden; background: radial-gradient(120% 100% at 50% 0%, #141d31 0%, #070b16 70%); touch-action: pan-y; }
+.lightbox-img { max-width: 100%; max-height: calc(92vh - 70px); object-fit: contain; user-select: none; -webkit-user-drag: none; cursor: zoom-in; transition: transform .18s ease; will-change: transform; }
+.lightbox-img.is-zoomed { cursor: grab; }
+.lightbox-img.is-zoomed:active { cursor: grabbing; }
+.lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--border); background: rgba(10,14,26,.65); color: #fff; cursor: pointer; backdrop-filter: blur(6px); transition: background .2s, transform .2s; }
+.lightbox-nav:hover { background: var(--primary); transform: translateY(-50%) scale(1.06); }
+.lightbox-prev { right: .9rem; }
+.lightbox-next { left: .9rem; }
+[dir="ltr"] .lightbox-prev { right: auto; left: .9rem; }
+[dir="ltr"] .lightbox-next { left: auto; right: .9rem; }
+@media (max-width: 640px) {
+    .lightbox-cap { font-size: .85rem; }
+    .lightbox-nav { width: 40px; height: 40px; }
+    .lightbox-prev { right: .4rem; }
+    .lightbox-next { left: .4rem; }
+}
+@media (prefers-reduced-motion: reduce) { .lightbox-img { transition: none; } }
+
 /* ========================================================================
    Pre-paint maintenance gate (maintenance-gate.js)
    ======================================================================== */
@@ -2786,7 +2824,7 @@ body.maintenance-on > *:not(#maintenanceScreen):not(#maintenanceGate) { display:
 .ms-gear--3 { font-size: 1.2rem; bottom: 2px; inset-inline-end: 28px; animation: ms-gear 6s linear infinite; }
 @keyframes ms-gear { to { transform: rotate(360deg); } }
 .ms-core { position: absolute; inset: 46px; display: grid; place-items: center; border-radius: 50%; background: var(--bg-elevated); border: 1px solid var(--border); box-shadow: 0 0 0 10px color-mix(in srgb, var(--primary) 10%, transparent), 0 18px 50px rgba(0,0,0,.35); animation: ms-core-pulse 2.8s ease-in-out infinite; }
-.ms-core i { font-size: 2rem; color: var(--primary); background: var(--gradient); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: maintenance-rock 3.2s ease-in-out infinite; }
+.ms-core i { font-size: 2rem; color: var(--primary); filter: drop-shadow(0 2px 10px rgba(99,102,241,.5)); animation: maintenance-rock 3.2s ease-in-out infinite; }
 @keyframes ms-core-pulse { 50% { box-shadow: 0 0 0 16px color-mix(in srgb, var(--primary) 6%, transparent), 0 18px 50px rgba(0,0,0,.35); } }
 .ms-brand { display: inline-flex; gap: .5rem; align-items: center; font-weight: 800; letter-spacing: .5px; color: var(--text-secondary); margin-bottom: .9rem; }
 .ms-brand i { color: var(--primary); }
@@ -2815,3 +2853,4 @@ body.maintenance-on > *:not(#maintenanceScreen):not(#maintenanceGate) { display:
     .maintenance-orbit, .maintenance-orbit *, .maintenance-screen, .maintenance-screen *, #maintenanceGate *, .media-slide { animation: none !important; transition: none !important; }
     .ms-progress span { inset-inline-start: 30%; }
 }
+
