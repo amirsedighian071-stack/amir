@@ -79,6 +79,8 @@ const CONTENT_ITEMS_EN = {
 // Dynamic UI strings share the same bilingual editor as page content.
 const CONTENT_UI = {
     previousSlide:['اسلاید قبلی','Previous slide'], nextSlide:['اسلاید بعدی','Next slide'],
+    viewFull:['مشاهده تصویر کامل','View full image'], zoomIn:['بزرگ‌نمایی','Zoom in'],
+    zoomOut:['کوچک‌نمایی','Zoom out'], zoomReset:['اندازه واقعی','Actual size'],
     orderSummary:['خلاصه سفارش','Order summary'], itemCount:['عدد','items'],
     telegramInvalid:['آیدی تلگرام معتبر نیست. نمونه صحیح: username یا @username','Enter a valid Telegram username, such as username or @username.'],
     placingOrder:['در حال ثبت و اتصال به ربات...','Placing your order and connecting to Telegram…'],
@@ -94,5 +96,5 @@ const CONTENT_UI = {
 };
 Object.entries(CONTENT_UI).forEach(([key,values]) => {
     CONTENT_FA[key]=values[0]; CONTENT_EN[key]=values[1];
-    CONTENT_SECTIONS[['more','technologies','similarProject','shopServices'].includes(key)?'projects':'shop'].texts[key]=values[0];
+    CONTENT_SECTIONS[['more','technologies','similarProject','shopServices','viewFull','zoomIn','zoomOut','zoomReset'].includes(key)?'projects':'shop'].texts[key]=values[0];
 });

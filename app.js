@@ -122,31 +122,31 @@ const DEFAULT_DATA = {
     ],
     projects: [
         { id: 1, icon: 'fas fa-robot', tag: 'ربات تلگرام', title: 'ربات فروشگاهی دو زبانه', desc: 'ربات تلگرام فروشگاهی با پنل ادمین وب، درگاه پرداخت و پشتیبانی از فارسی و انگلیسی.', tech: 'React,Cloudflare Workers,KV',
-          image: 'assets/img/projects/p1-bot-1.jpg', gallery: ['assets/img/projects/p1-bot-1.jpg', 'assets/img/projects/p1-bot-2.jpg', 'assets/img/projects/p1-bot-3.jpg'],
+          image: 'assets/img/projects/p1-bot-1.svg', gallery: ['assets/img/projects/p1-bot-1.svg', 'assets/img/projects/p1-bot-2.svg', 'assets/img/projects/p1-bot-3.svg'],
           longDescription: 'یک فروشگاه کامل داخل تلگرام که مدیریت آن از پنل ادمین تحت وب انجام می‌شود؛ بدون نیاز به سرور گران و بدون دغدغه نگهداری.\n\n• نمایش محصولات و دسته‌بندی‌ها به فارسی و انگلیسی\n• سبد خرید، کد تخفیف و پرداخت آنلاین\n• ارسال خودکار فاکتور و تحویل لحظه‌ای سفارش\n• گزارش فروش روزانه، ماهانه و نمودار رشد در پنل\n\nکل زیرساخت روی Cloudflare Workers و KV اجرا می‌شود؛ به همین دلیل زمان پاسخ‌دهی پایین، آپ‌تایم بالا و هزینه نگهداری تقریباً صفر است.' },
         { id: 2, icon: 'fas fa-globe', tag: 'وب‌سایت', title: 'سایت شرکتی مدرن', desc: 'طراحی و توسعه وب‌سایت شرکتی ریسپانسیو با پنل مدیریت محتوا و SEO بهینه.', tech: 'Next.js,Tailwind,TypeScript',
-          image: 'assets/img/projects/p2-corp-1.jpg', gallery: ['assets/img/projects/p2-corp-1.jpg', 'assets/img/projects/p2-corp-2.jpg', 'assets/img/projects/p2-corp-3.jpg'],
+          image: 'assets/img/projects/p2-corp-1.svg', gallery: ['assets/img/projects/p2-corp-1.svg', 'assets/img/projects/p2-corp-2.svg', 'assets/img/projects/p2-corp-3.svg'],
           longDescription: 'وب‌سایت شرکتی با تمرکز بر سرعت، سئو و ظاهر حرفه‌ای ساخته شد تا معرفی خدمات و جذب مشتری ساده باشد.\n\n• طراحی واکنش‌گرا برای موبایل، تبلت و دسکتاپ\n• پنل مدیریت محتوا برای ویرایش متن‌ها و تصاویر توسط خود کارفرما\n• ساختار سئوی فنی: متا تگ‌ها، Schema و نقشه سایت\n• امتیاز بالای سرعت در Lighthouse و Core Web Vitals\n\nپروژه با Next.js و Tailwind CSS پیاده‌سازی شده و روی زیرساخت ابری با SSL رایگان منتشر شده است.' },
         { id: 3, icon: 'fas fa-network-wired', tag: 'زیرساخت', title: 'پنل مدیریت VPN', desc: 'پنل مدیریت کاربران VPN با پشتیبانی از پروتکل‌های VLESS، VMess و Trojan.', tech: 'Python,Docker,gRPC',
-          image: 'assets/img/projects/p3-vpn-1.jpg', gallery: ['assets/img/projects/p3-vpn-1.jpg', 'assets/img/projects/p3-vpn-2.jpg', 'assets/img/projects/p3-vpn-3.jpg'],
+          image: 'assets/img/projects/p3-vpn-1.svg', gallery: ['assets/img/projects/p3-vpn-1.svg', 'assets/img/projects/p3-vpn-2.svg', 'assets/img/projects/p3-vpn-3.svg'],
           longDescription: 'پنلی برای مدیریت متمرکز کاربران و کانفیگ‌ها، ساخته‌شده برای ادمین‌هایی که چندین سرور و صدها کاربر دارند.\n\n• ساخت و تحویل خودکار کانفیگ برای VLESS، VMess و Trojan\n• محدودیت حجم و تاریخ انقضا برای هر کاربر\n• گزارش مصرف و نمودار ترافیک\n• اجرا با Docker و به‌روزرسانی بدون قطعی سرویس\n\nارتباط پنل با سرورها از طریق gRPC انجام می‌شود تا مدیریت چند سرور هم‌زمان سریع و امن باشد.' },
         { id: 4, icon: 'fas fa-chart-line', tag: 'داشبورد', title: 'داشبورد تحلیلی', desc: 'داشبورد تحلیلی Realtime با نمودارهای تعاملی و گزارش‌گیری خودکار.', tech: 'React,Chart.js,API',
-          image: 'assets/img/projects/p4-dash-1.jpg', gallery: ['assets/img/projects/p4-dash-1.jpg', 'assets/img/projects/p4-dash-2.jpg', 'assets/img/projects/p4-dash-3.jpg'],
+          image: 'assets/img/projects/p4-dash-1.svg', gallery: ['assets/img/projects/p4-dash-1.svg', 'assets/img/projects/p4-dash-2.svg', 'assets/img/projects/p4-dash-3.svg'],
           longDescription: 'داشبوردی که همه شاخص‌های کلیدی کسب‌وکار را در یک نگاه نشان می‌دهد و داده‌ها را لحظه‌ای به‌روز می‌کند.\n\n• نمودارهای تعاملی فروش، بازدید و نرخ تبدیل\n• فیلتر بازه زمانی و مقایسه دوره‌ای\n• گزارش‌گیری خودکار و خروجی Excel و PDF\n• هشدار هوشمند هنگام افت شاخص‌ها\n\nداده‌ها از REST API خوانده می‌شوند و رابط کاربری با React و Chart.js ساخته شده تا روی موبایل هم روان اجرا شود.' },
         { id: 5, icon: 'fas fa-plug', tag: 'API', title: 'API بک‌اند قدرتمند', desc: 'طراحی REST API با احراز هویت JWT، کشینگ و مستندسازی Swagger.', tech: 'Python,FastAPI,Redis',
-          image: 'assets/img/projects/p5-api-1.jpg', gallery: ['assets/img/projects/p5-api-1.jpg', 'assets/img/projects/p5-api-2.jpg'],
+          image: 'assets/img/projects/p5-api-1.svg', gallery: ['assets/img/projects/p5-api-1.svg', 'assets/img/projects/p5-api-2.svg'],
           longDescription: 'یک بک‌اند تمیز و مقیاس‌پذیر که چند اپلیکیشن مختلف روی آن سوار می‌شوند.\n\n• احراز هویت با JWT و سطح‌بندی دسترسی\n• کشینگ با Redis برای کاهش چشمگیر زمان پاسخ\n• مستندسازی کامل Swagger برای تیم فرانت‌اند\n• تست خودکار و CI برای انتشار بدون خطا\n\nپیاده‌سازی با FastAPI انجام شده و روی سرور لینوکسی با Docker و Nginx منتشر می‌شود.' },
         { id: 6, icon: 'fas fa-cloud-upload-alt', tag: 'کلادفلر', title: 'استقرار روی Cloudflare', desc: 'مهاجرت و استقرار کامل زیرساخت روی Cloudflare Pages، Workers و R2.', tech: 'Cloudflare,Workers,R2',
-          image: 'assets/img/projects/p6-cloud-1.jpg', gallery: ['assets/img/projects/p6-cloud-1.jpg', 'assets/img/projects/p6-cloud-2.jpg'],
+          image: 'assets/img/projects/p6-cloud-1.svg', gallery: ['assets/img/projects/p6-cloud-1.svg', 'assets/img/projects/p6-cloud-2.svg'],
           longDescription: 'مهاجرت کامل یک سرویس از هاست اشتراکی به زیرساخت مدرن کلادفلر؛ سریع‌تر، ارزان‌تر و پایدارتر.\n\n• انتقال DNS و تنظیمات امنیتی به Cloudflare\n• انتشار سایت روی Pages با بیلد خودکار از مخزن Git\n• اجرای منطق سرور روی Workers و ذخیره فایل‌ها روی R2\n• کشینگ هوشمند و کاهش زمان بارگذاری تا چند برابر\n\nنتیجه: بدون سرور ثابت، بدون هزینه اضافی و با آپ‌تایم بالا در تمام ساعات شبانه‌روز.' },
         { id: 7, icon: 'fas fa-shopping-bag', tag: 'فول‌استک', title: 'فروشگاه اینترنتی', desc: 'ساخت فروشگاه اینترنتی با سبد خرید، درگاه پرداخت، پنل ادمین و مدیریت سفارش‌ها.', tech: 'Next.js,PostgreSQL,Tailwind',
-          image: 'assets/img/projects/p7-shop-1.jpg', gallery: ['assets/img/projects/p7-shop-1.jpg', 'assets/img/projects/p7-shop-2.jpg', 'assets/img/projects/p7-shop-3.jpg'],
+          image: 'assets/img/projects/p7-shop-1.svg', gallery: ['assets/img/projects/p7-shop-1.svg', 'assets/img/projects/p7-shop-2.svg', 'assets/img/projects/p7-shop-3.svg'],
           longDescription: 'یک فروشگاه اینترنتی کامل با تجربه کاربری ساده برای مشتری و مدیریت آسان برای فروشنده.\n\n• جست‌وجو و فیلتر سریع محصولات\n• سبد خرید، پرداخت امن و پیگیری سفارش\n• پنل ادمین برای موجودی، قیمت‌گذاری و کد تخفیف\n• ایمیل و پیامک اطلاع‌رسانی خودکار\n\nپایگاه‌داده PostgreSQL و فرانت‌اند Next.js انتخاب شد تا هم امنیت داده‌ها و هم سرعت صفحات بالا باشد.' },
         { id: 8, icon: 'fas fa-mobile-alt', tag: 'PWA', title: 'وب اپلیکیشن PWA', desc: 'توسعه وب اپلیکیشن پیش‌رونده با قابلیت نصب روی موبایل و کار آفلاین.', tech: 'React,PWA,IndexedDB',
-          image: 'assets/img/projects/p8-pwa-1.jpg', gallery: ['assets/img/projects/p8-pwa-1.jpg', 'assets/img/projects/p8-pwa-2.jpg', 'assets/img/projects/p8-pwa-3.jpg'],
+          image: 'assets/img/projects/p8-pwa-1.svg', gallery: ['assets/img/projects/p8-pwa-1.svg', 'assets/img/projects/p8-pwa-2.svg', 'assets/img/projects/p8-pwa-3.svg'],
           longDescription: 'اپلیکیشنی که بدون فروشگاه اپلیکیشن روی گوشی کاربر نصب می‌شود و آفلاین هم کار می‌کند.\n\n• نصب مستقیم از مرورگر روی صفحه اصلی گوشی\n• ذخیره اطلاعات در IndexedDB و استفاده آفلاین\n• همگام‌سازی خودکار با سرور پس از اتصال\n• نوتیفیکیشن و آیکون اختصاصی اپلیکیشن\n\nبرای کسب‌وکارهایی مناسب است که می‌خواهند با هزینه کم، تجربه‌ای شبیه اپلیکیشن نیتیو به کاربر بدهند.' },
         { id: 9, icon: 'fas fa-robot', tag: 'هوش مصنوعی', title: 'چت‌بات هوشمند', desc: 'چت‌بات متصل به API هوش مصنوعی با پشتیبانی از چندین زبان و حافظه مکالمه.', tech: 'Python,OpenAI,Telegram',
-          image: 'assets/img/projects/p9-ai-1.jpg', gallery: ['assets/img/projects/p9-ai-1.jpg', 'assets/img/projects/p9-ai-2.jpg', 'assets/img/projects/p9-ai-3.jpg'],
+          image: 'assets/img/projects/p9-ai-1.svg', gallery: ['assets/img/projects/p9-ai-1.svg', 'assets/img/projects/p9-ai-2.svg', 'assets/img/projects/p9-ai-3.svg'],
           longDescription: 'چت‌باتی که مثل یک پشتیبان انسانی پاسخ می‌دهد و مکالمه را به خاطر می‌سپارد.\n\n• پاسخ‌گویی هوشمند با استفاده از API هوش مصنوعی\n• حافظه مکالمه برای هر کاربر و ادامه گفتگو\n• پشتیبانی از فارسی، انگلیسی و چند زبان دیگر\n• انتقال گفتگو به اپراتور انسانی در موارد خاص\n\nبرای پشتیبانی فروشگاه‌ها و پاسخ‌گویی شبانه‌روزی به سؤالات پرتکرار طراحی شده است.' }
     ],
     contactCards: [
@@ -174,9 +174,33 @@ Object.values(CONTENT_SECTIONS).forEach(section => {
 // keep them icon-only forever). Fill the bundled visuals back in, but never
 // override anything the admin touched: an uploaded photo (even an empty string
 // after «حذف عکس») or a renamed card stays exactly as saved.
+// Portfolio artwork moved from .jpg stock photos to Persian .svg screenshots.
+// Older saved copies (localStorage / server store) may still pin the legacy
+// paths — remap exact matches so they resolve to the new artwork. Anything
+// the admin uploaded (data: URLs, custom paths) is left untouched.
+const LEGACY_SHOT_RE = /^assets\/img\/projects\/([A-Za-z0-9-]+)\.jpg$/;
+let _knownShots = null;
+function migrateLegacyShot(src) {
+    if (typeof src !== 'string') return src;
+    const m = LEGACY_SHOT_RE.exec(src);
+    if (!m) return src;
+    if (!_knownShots) {
+        _knownShots = new Set();
+        (DEFAULT_DATA.projects || []).forEach(d => {
+            if (d.image) _knownShots.add(d.image);
+            (d.gallery || []).forEach(g => _knownShots.add(g));
+        });
+    }
+    const svg = `assets/img/projects/${m[1]}.svg`;
+    return _knownShots.has(svg) ? svg : src;
+}
 function applyDefaultMedia(data) {
     ['products', 'projects'].forEach(list => {
         (data[list] || []).forEach(item => {
+            if (list === 'projects') {
+                if (typeof item.image === 'string') item.image = migrateLegacyShot(item.image);
+                if (Array.isArray(item.gallery)) item.gallery = item.gallery.map(migrateLegacyShot);
+            }
             const def = (DEFAULT_DATA[list] || []).find(d => d.id === item.id);
             if (!def || !def.image || item.name !== def.name) return;
             if ((item.image === undefined || item.image === null) && def.image) item.image = def.image;
@@ -1050,6 +1074,10 @@ function closeAnimatedOverlay(overlay, done) {
 
 document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
+    // The screenshot lightbox always sits above the other overlays, even when
+    // it was created before them, so it must close first regardless of DOM order.
+    const lb = document.getElementById('shotLightbox');
+    if (lb && lb.classList.contains('active')) { closeShotLightbox(); return; }
     const open = Array.from(document.querySelectorAll('.overlay.active')).pop();
     if (!open) return;
     if (open.id === 'productModal') closeProductModal();
@@ -1584,12 +1612,25 @@ function mediaSlidesHtml(p, opts = {}) {
         ${opts.arrows ? `
         <button type="button" class="media-arrow media-arrow--prev" data-media-prev aria-label="${escapeContent(txt('previousSlide'))}"><i class="fas fa-chevron-right"></i></button>
         <button type="button" class="media-arrow media-arrow--next" data-media-next aria-label="${escapeContent(txt('nextSlide'))}"><i class="fas fa-chevron-left"></i></button>` : ''}` : ''}
+        <button type="button" class="media-zoom" data-media-zoom aria-label="${escapeContent(txt('viewFull'))}"><i class="fas fa-expand"></i></button>
     </div>`;
 }
 function initMediaSliders(scope) {
     (scope || document).querySelectorAll('[data-media-slider]').forEach(root => {
         if (root.dataset.mediaReady === '1') return;
         const slides = Array.from(root.querySelectorAll('.media-slide'));
+        // Every slide opens in the full-image lightbox (click the photo or the
+        // zoom button). Wired for single-photo sliders too, before the early return.
+        const zoomBtn = root.querySelector('[data-media-zoom]');
+        const shotSources = () => slides.map(s => { const img = s.querySelector('img'); return { src: img ? (img.getAttribute('src') || img.src) : '', alt: img ? (img.getAttribute('alt') || '') : '' }; });
+        const activeShot = () => Math.max(0, slides.findIndex(s => s.classList.contains('is-active')));
+        if (zoomBtn) zoomBtn.addEventListener('click', e => { e.stopPropagation(); openShotLightbox(shotSources(), activeShot(), zoomBtn); });
+        root.addEventListener('click', e => {
+            if (e.target.closest('[data-media-dot],[data-media-prev],[data-media-next],[data-media-zoom]')) return;
+            if (!e.target.closest('.media-slide')) return;
+            e.stopPropagation();
+            openShotLightbox(shotSources(), activeShot(), e.target.closest('.media-slide'));
+        });
         if (slides.length < 2) { root.dataset.mediaReady = '1'; return; }
         root.dataset.mediaReady = '1';
         const dots = Array.from(root.querySelectorAll('[data-media-dot]'));
@@ -1647,6 +1688,174 @@ function initMediaSliders(scope) {
         schedule();
     });
 }
+
+// ============== Screenshot lightbox (full-image zoom for portfolio shots) ==============
+// Floats above every other overlay (the project modal included). Slides flip
+// with buttons, swipe or arrow keys; the photo itself zooms via the toolbar,
+// the mouse wheel or a click, and pans by dragging while zoomed.
+let _shotLb = null;
+function shotLightboxEl() {
+    let box = document.getElementById('shotLightbox');
+    if (box) return box;
+    box = document.createElement('div');
+    box.className = 'overlay overlay--lightbox';
+    box.id = 'shotLightbox';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.innerHTML = `
+        <div class="modal-lg lightbox-panel">
+            <div class="lightbox-head">
+                <span class="lightbox-cap"></span>
+                <span class="lightbox-count" aria-hidden="true"></span>
+                <div class="lightbox-tools">
+                    <button type="button" class="lightbox-btn" data-lb-zoom-out><i class="fas fa-magnifying-glass-minus"></i></button>
+                    <button type="button" class="lightbox-btn lightbox-scale" data-lb-zoom-reset>100%</button>
+                    <button type="button" class="lightbox-btn" data-lb-zoom-in><i class="fas fa-magnifying-glass-plus"></i></button>
+                    <button type="button" class="lightbox-btn lightbox-close" data-lb-close><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="lightbox-stage">
+                <img class="lightbox-img" alt="" draggable="false">
+                <button type="button" class="lightbox-nav lightbox-prev" data-lb-prev><i class="fas fa-chevron-right"></i></button>
+                <button type="button" class="lightbox-nav lightbox-next" data-lb-next><i class="fas fa-chevron-left"></i></button>
+            </div>
+        </div>`;
+    document.body.appendChild(box);
+    if (typeof applyContentControls === 'function') applyContentControls();
+    box.addEventListener('click', e => {
+        if (e.target === box) { closeShotLightbox(); return; }
+        const b = e.target.closest('button');
+        if (!b || !_shotLb) return;
+        if (b.hasAttribute('data-lb-close')) closeShotLightbox();
+        else if (b.hasAttribute('data-lb-prev')) shotLbShow(_shotLb.index - 1);
+        else if (b.hasAttribute('data-lb-next')) shotLbShow(_shotLb.index + 1);
+        else if (b.hasAttribute('data-lb-zoom-in')) shotLbZoom(_shotLb.scale + .5);
+        else if (b.hasAttribute('data-lb-zoom-out')) shotLbZoom(_shotLb.scale - .5);
+        else if (b.hasAttribute('data-lb-zoom-reset')) shotLbZoom(1);
+    });
+    const img = box.querySelector('.lightbox-img');
+    // Mouse click (without dragging) toggles between fit and 2x zoom.
+    let downX = 0, downY = 0, panning = false, lastX = 0, lastY = 0;
+    img.addEventListener('pointerdown', e => {
+        if (!_shotLb) return;
+        downX = lastX = e.clientX; downY = lastY = e.clientY;
+        panning = _shotLb.scale > 1 && e.pointerType !== 'touch';
+        if (panning) {
+            img.style.transition = 'none';
+            if (img.setPointerCapture) { try { img.setPointerCapture(e.pointerId); } catch (_) {} }
+        }
+    });
+    img.addEventListener('pointermove', e => {
+        if (!_shotLb || !panning) return;
+        const dx = e.clientX - lastX, dy = e.clientY - lastY;
+        lastX = e.clientX; lastY = e.clientY;
+        shotLbPan(_shotLb.tx + dx, _shotLb.ty + dy);
+    });
+    img.addEventListener('pointerup', e => {
+        if (!_shotLb) return;
+        const dragged = Math.abs(e.clientX - downX) + Math.abs(e.clientY - downY) > 6;
+        panning = false;
+        img.style.transition = '';
+        if (e.pointerType !== 'touch' && !dragged) shotLbZoom(_shotLb.scale > 1 ? 1 : 2);
+    });
+    img.addEventListener('pointercancel', () => { panning = false; img.style.transition = ''; });
+    box.querySelector('.lightbox-stage').addEventListener('wheel', e => {
+        if (!_shotLb) return;
+        e.preventDefault();
+        shotLbZoom(_shotLb.scale + (e.deltaY < 0 ? .25 : -.25));
+    }, { passive: false });
+    // Touch swipe flips slides when not zoomed.
+    let touchX = null;
+    const stage = box.querySelector('.lightbox-stage');
+    stage.addEventListener('touchstart', e => { touchX = e.touches.length === 1 ? e.touches[0].clientX : null; }, { passive: true });
+    stage.addEventListener('touchend', e => {
+        if (touchX === null || !_shotLb || _shotLb.scale > 1) { touchX = null; return; }
+        const dx = e.changedTouches[0].clientX - touchX;
+        touchX = null;
+        if (Math.abs(dx) > 48) shotLbShow(_shotLb.index + (dx < 0 ? 1 : -1));
+    }, { passive: true });
+    return box;
+}
+function shotLbLabels(box) {
+    box.setAttribute('aria-label', txt('viewFull'));
+    const set = (sel, key) => { const el = box.querySelector(sel); if (el) el.setAttribute('aria-label', txt(key)); };
+    set('[data-lb-zoom-in]', 'zoomIn');
+    set('[data-lb-zoom-out]', 'zoomOut');
+    set('[data-lb-zoom-reset]', 'zoomReset');
+    set('[data-lb-close]', 'close');
+    set('[data-lb-prev]', 'previousSlide');
+    set('[data-lb-next]', 'nextSlide');
+}
+function shotLbApply() {
+    if (!_shotLb) return;
+    const img = _shotLb.box.querySelector('.lightbox-img');
+    img.style.transform = `translate(${_shotLb.tx}px, ${_shotLb.ty}px) scale(${_shotLb.scale})`;
+    img.classList.toggle('is-zoomed', _shotLb.scale > 1);
+    _shotLb.box.querySelector('.lightbox-scale').textContent = toPersianNum(Math.round(_shotLb.scale * 100)) + '٪';
+}
+function shotLbShow(i) {
+    if (!_shotLb || !_shotLb.slides.length) return;
+    _shotLb.index = ((i % _shotLb.slides.length) + _shotLb.slides.length) % _shotLb.slides.length;
+    const s = _shotLb.slides[_shotLb.index];
+    const img = _shotLb.box.querySelector('.lightbox-img');
+    img.src = s.src;
+    img.alt = s.alt || '';
+    _shotLb.box.querySelector('.lightbox-cap').textContent = s.alt || '';
+    _shotLb.box.querySelector('.lightbox-count').textContent =
+        `${toPersianNum(_shotLb.index + 1)} / ${toPersianNum(_shotLb.slides.length)}`;
+    const multi = _shotLb.slides.length > 1;
+    _shotLb.box.querySelector('[data-lb-prev]').style.display = multi ? '' : 'none';
+    _shotLb.box.querySelector('[data-lb-next]').style.display = multi ? '' : 'none';
+    _shotLb.scale = 1; _shotLb.tx = 0; _shotLb.ty = 0;
+    shotLbApply();
+}
+function shotLbPan(tx, ty) {
+    if (!_shotLb) return;
+    const img = _shotLb.box.querySelector('.lightbox-img'), stage = _shotLb.box.querySelector('.lightbox-stage');
+    const overX = Math.max(0, (img.offsetWidth * _shotLb.scale - stage.clientWidth) / 2);
+    const overY = Math.max(0, (img.offsetHeight * _shotLb.scale - stage.clientHeight) / 2);
+    _shotLb.tx = Math.max(-overX, Math.min(overX, tx));
+    _shotLb.ty = Math.max(-overY, Math.min(overY, ty));
+    shotLbApply();
+}
+function shotLbZoom(scale) {
+    if (!_shotLb) return;
+    _shotLb.scale = Math.max(1, Math.min(3, Math.round(scale * 4) / 4));
+    if (_shotLb.scale === 1) { _shotLb.tx = 0; _shotLb.ty = 0; }
+    shotLbPan(_shotLb.tx, _shotLb.ty);
+}
+function openShotLightbox(slides, index, sourceEl) {
+    const list = (slides || []).filter(s => s && s.src);
+    if (!list.length || _shotLb) return;
+    const box = shotLightboxEl();
+    shotLbLabels(box);
+    _shotLb = { box, slides: list, index: 0, scale: 1, tx: 0, ty: 0, opener: sourceEl || null };
+    shotLbShow(index || 0);
+    openAnimatedOverlay(box, (sourceEl && sourceEl.querySelector && sourceEl.querySelector('img')) || sourceEl);
+    const closeBtn = box.querySelector('[data-lb-close]');
+    if (closeBtn) setTimeout(() => { try { closeBtn.focus({ preventScroll: true }); } catch (_) { closeBtn.focus(); } }, 60);
+}
+function closeShotLightbox() {
+    const st = _shotLb;
+    _shotLb = null;
+    const box = document.getElementById('shotLightbox');
+    closeAnimatedOverlay(box, () => {
+        // The lightbox floats above the project modal — keep the page locked
+        // while another overlay is still open underneath it.
+        if (document.querySelector('.overlay.active')) document.body.style.overflow = 'hidden';
+        if (st && st.opener && st.opener.isConnected && st.opener.focus) {
+            try { st.opener.focus({ preventScroll: true }); } catch (_) { st.opener.focus(); }
+        }
+    });
+}
+document.addEventListener('keydown', e => {
+    if (!_shotLb || !document.getElementById('shotLightbox')) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); shotLbShow(_shotLb.index + 1); }       // RTL: left advances
+    else if (e.key === 'ArrowRight') { e.preventDefault(); shotLbShow(_shotLb.index - 1); }
+    else if (e.key === '+' || e.key === '=') shotLbZoom(_shotLb.scale + .5);
+    else if (e.key === '-') shotLbZoom(_shotLb.scale - .5);
+    else if (e.key === '0') shotLbZoom(1);
+});
 
 function renderProjectsGrid() {
     const grid = document.getElementById('projectsGrid');
@@ -1759,6 +1968,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.target.closest && e.target.closest('button, a, input, select, textarea')) return;
     const card = e.target.closest && e.target.closest('.project-card[data-project]');
     if (!card) return;
     e.preventDefault();
