@@ -367,6 +367,8 @@ const CONTENT_FA = {
   "shopDisabled_title": "در حال بروزرسانی هستیم",
   "shopDisabled_desc": "صبور باشید، به زودی با محصولات جدید برمی‌گردیم.",
   "shopDisabled_extra": "برای سفارش با پشتیبانی در ارتباط باشید.",
+  "maintenance_title": "در حال بروزرسانی سایت هستیم",
+  "maintenance_desc": "صبور باشید؛ به‌زودی با امکانات جدید برمی‌گردیم.",
   "addToCart": "افزودن به سبد خرید",
   "viewCart": "مشاهده سبد خرید",
   "cartTitle": "سبد خرید",

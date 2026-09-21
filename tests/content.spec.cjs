@@ -83,7 +83,44 @@ test('closed shop shows editable animated maintenance, hides products and preven
     await expect(page.locator('.maintenance-orbit')).toBeVisible();await expect(page.locator('.product-card')).toHaveCount(0);
     await page.evaluate(()=>{addToCart(1);openProductDetail(1);});await expect(page.locator('#productModal')).toHaveCount(0);
     expect(await page.evaluate(()=>Object.keys(CART).length)).toBe(0);
-    await page.goto('/');await expect(page.locator('.shop-disabled')).toBeVisible();
+    // On the home page the whole shop preview section and the shop entry
+    // points are disabled while the shop is closed.
+    await page.goto('/');
+    await expect(page.locator('[data-visible="shopPreview"]')).toBeHidden();
+    await expect(page.locator('.nav-link[data-section="shop"]')).toHaveClass(/shop-entry-disabled/);
+    await expect(page.locator('a[data-shop-entry][data-content-link="home_button_12"]')).toHaveClass(/shop-entry-disabled/);
+});
+
+test('maintenance mode replaces every public page and keeps the admin panel usable',async({page})=>{
+    await page.goto('/');
+    await page.evaluate(()=>{SITE.maintenanceMode=true;saveData({push:false});renderSitePage();});
+    await expect(page.locator('#maintenanceScreen')).toBeVisible();
+    await expect(page.locator('#maintenanceScreen')).toContainText('در حال بروزرسانی سایت هستیم');
+    await expect(page.locator('main')).toBeHidden();await expect(page.locator('.navbar')).toBeHidden();await expect(page.locator('.footer')).toBeHidden();
+    await page.goto('/contact.html');
+    await expect(page.locator('#maintenanceScreen')).toBeVisible();await expect(page.locator('main')).toBeHidden();
+    await page.goto('/admin.html');
+    await expect(page.locator('#maintenanceScreen')).toHaveCount(0);
+    await login(page,'/admin.html');
+    await expect(page.locator('#maintenanceBanner')).toBeVisible();
+    await page.locator('label.switch:has(#maintenanceToggle)').click();
+    await page.goto('/');await expect(page.locator('main')).toBeVisible();await expect(page.locator('#maintenanceScreen')).toHaveCount(0);
+});
+
+test('portfolio cards show multi-slide galleries with dots and a modal slider',async({page})=>{
+    await page.goto('/projects.html');
+    const slider=page.locator('.project-card .media-slider').first();
+    await expect(slider.locator('.media-slide')).toHaveCount(3);
+    await expect(slider.locator('.media-dot')).toHaveCount(3);
+    await slider.locator('.media-dot').nth(1).click();
+    await expect(slider.locator('.media-slide').nth(1)).toHaveClass(/is-active/);
+    await expect(page.locator('#projectModal')).toHaveCount(0); // dot clicks must not open the modal
+    await page.locator('.project-card').first().click();
+    await expect(page.locator('#projectModal')).toBeVisible();
+    await expect(page.locator('#projectModal .media-slider .media-slide')).toHaveCount(3);
+    await expect(page.locator('#projectModal .media-arrow')).toHaveCount(2);
+    await page.locator('#projectModal .media-arrow--next').click();
+    await expect(page.locator('#projectModal .media-slide').nth(1)).toHaveClass(/is-active/);
 });
 
 test('individual controls hide required contact fields without blocking submission',async({page})=>{

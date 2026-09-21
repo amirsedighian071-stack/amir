@@ -73,6 +73,16 @@ function applyContentControls() {
         const fields={image:'.feature-icon,.project-image,.product-image,.contact-icon,.product-detail-icon,.project-detail-hero',title:'h3,h4,.product-title,.product-detail-title,.project-detail-title',desc:'.feature-card > p,.project-content > p,.product-desc,.product-detail-desc,.project-detail-desc',longDescription:'.product-detail-long,.project-detail-long',tag:'.project-tag,.project-detail-tag',tech:'.project-tech,.project-detail-tech',hint:'.contact-detail p',value:'.contact-detail a,.contact-detail > span',features:'.product-features,.product-detail-features',price:'.product-price,.product-detail-price',unit:'.price-unit'};
         Object.entries(fields).forEach(([field,selector])=>el.querySelectorAll(selector).forEach(child=>child.classList.toggle('content-item-hidden',!isVisible(`item:${list}:${id}:${field}`))));
     });
+    // Disabled shop entry points must never navigate; announce why instead.
+    document.querySelectorAll('a.shop-entry-disabled').forEach(el=>{
+        if(el.dataset.entryBlocked==='1')return;
+        el.dataset.entryBlocked='1';
+        el.addEventListener('click',e=>{
+            if(!el.classList.contains('shop-entry-disabled'))return;
+            e.preventDefault();e.stopPropagation();
+            if(typeof showToast==='function')showToast(txt('shopDisabled_title'),'error');
+        },true);
+    });
     const productControls={productImage:'.product-image',productBadge:'.product-badge',productCategory:'.product-cat',productName:'.product-title',productDescription:'.product-desc',productFeatures:'.product-features',productPrice:'.product-price',productBuy:'[data-quick]',shopFilters:'.shop-categories'};
     Object.entries(productControls).forEach(([key,selector])=>document.querySelectorAll(selector).forEach(el=>el.classList.toggle('content-hidden',!isVisible(page==='home' && key!=='shopFilters' ? 'home_'+key : key))));
     [['home_sliderArrows','.slider-arrow'],['home_sliderDots','.slider-dots'],['home_sliderProgress','.slider-progress']].forEach(([key,selector])=>document.querySelectorAll(selector).forEach(el=>el.classList.toggle('content-hidden',!isVisible(key))));
@@ -81,6 +91,15 @@ function applyContentControls() {
         cart.classList.toggle('content-hidden',!SITE.shopEnabled || !isVisible('cart_'+page));
         const label=cart.querySelector('.cart-float-label'); if(label) {label.textContent=txt('cartTitle');label.classList.toggle('content-text-hidden',!isVisible('text:cartTitle'));}
     }
+    // A closed shop disables every public entry point too: the home preview
+    // section disappears entirely and all shop links become inert.
+    const shopOff=SITE.shopEnabled===false;
+    document.querySelectorAll('[data-visible="shopPreview"]').forEach(el=>el.classList.toggle('content-hidden',shopOff || !isVisible('shopPreview')));
+    document.querySelectorAll('[data-shop-entry]').forEach(el=>{
+        el.classList.toggle('shop-entry-disabled',shopOff);
+        if(shopOff){el.setAttribute('aria-disabled','true');el.title=txt('shopDisabled_title');}
+        else{el.removeAttribute('aria-disabled');if(el.dataset.entryTitle)el.title=el.dataset.entryTitle;else el.removeAttribute('title');}
+    });
     document.querySelectorAll('[data-content-link]').forEach(el=>{
         const value=SITE.contentLinks[el.dataset.contentLink];
         if(value!==undefined) el.href=safeContentUrl(value) || '#';

@@ -419,6 +419,50 @@ on('shopToggle', 'change', e => {
     SITE.shopEnabled = e.target.checked; saveData(); refreshShopEverywhere(); markSync('saving');
 });
 
+// ---- Full-site maintenance mode ----
+function paintMaintenanceUI() {
+    const on = SITE.maintenanceMode === true;
+    const toggle = byId('maintenanceToggle');
+    if (toggle && document.activeElement !== toggle) toggle.checked = on;
+    const banner = byId('maintenanceBanner');
+    if (banner) banner.hidden = !on;
+}
+on('maintenanceToggle', 'change', e => {
+    const want = e.target.checked;
+    if (want && !confirm('با فعال‌سازی، کل سایت برای بازدیدکنندگان از دسترس خارج می‌شود و فقط صفحهٔ «در حال بروزرسانی» نمایش داده می‌شود. ادامه می‌دهید؟')) {
+        e.target.checked = false;
+        return;
+    }
+    SITE.maintenanceMode = want;
+    saveData();
+    paintMaintenanceUI();
+    markSync('saving');
+    showAdminToast(want ? 'حالت بروزرسانی فعال شد؛ سایت برای بازدیدکنندگان بسته است.' : 'حالت بروزرسانی غیرفعال شد؛ سایت دوباره در دسترس است.');
+});
+on('maintenanceOffBtn', 'click', () => {
+    SITE.maintenanceMode = false;
+    saveData();
+    paintMaintenanceUI();
+    markSync('saving');
+    showAdminToast('سایت دوباره در دسترس قرار گرفت.');
+});
+on('saveMaintenanceTexts', 'click', () => {
+    SITE.texts.maintenance_title = byId('mtTitle').value;
+    SITE.texts.maintenance_desc = byId('mtDesc').value;
+    SITE.textsEn.maintenance_title = byId('mtTitleEn').value;
+    SITE.textsEn.maintenance_desc = byId('mtDescEn').value;
+    saveData();
+    markSync('saving');
+    showAdminToast('متن‌های صفحهٔ بروزرسانی ذخیره شد.');
+});
+function loadMaintenanceControls() {
+    if (byId('mtTitle')) byId('mtTitle').value = SITE.texts.maintenance_title || '';
+    if (byId('mtDesc')) byId('mtDesc').value = SITE.texts.maintenance_desc || '';
+    if (byId('mtTitleEn')) byId('mtTitleEn').value = SITE.textsEn.maintenance_title || '';
+    if (byId('mtDescEn')) byId('mtDescEn').value = SITE.textsEn.maintenance_desc || '';
+    paintMaintenanceUI();
+}
+
 // ---- Messages
 function renderMessages() {
     const list = document.getElementById('messagesList');
@@ -1104,6 +1148,7 @@ function initDashboard() {
     renderVisibility();
     loadTelegramSettings();
     document.getElementById('shopToggle').checked = SITE.shopEnabled;
+    loadMaintenanceControls();
 
     // Simple list editors
     simpleEditor({
@@ -1143,6 +1188,7 @@ function initDashboard() {
             updatePhotoPreviews(); loadAboutTexts();
             renderVisibility(); loadTelegramSettings(); refreshContentEditors();
             const st = byId('shopToggle'); if (st) st.checked = SITE.shopEnabled;
+            loadMaintenanceControls();
         });
         markSync(window.__syncOk === false ? 'local' : 'ok');
     }

@@ -9,36 +9,37 @@ const DEFAULT_DATA = {
     telegram: { botToken: '', chatId: '', botUsername: '', cardNumber: '', cardHolder: '', siteUrl: '' },
 
     shopEnabled: true,
+    maintenanceMode: false,
     products: [
-        { id: 1, name: 'هاست لینوکس حرفه‌ای', category: 'hosting', price: 250000, unit: 'ماهانه', icon: 'fas fa-server', badge: 'hot',
+        { id: 1, name: 'هاست لینوکس حرفه‌ای', category: 'hosting', price: 250000, unit: 'ماهانه', icon: 'fas fa-server', badge: 'hot', image: 'assets/img/products/hosting-linux.jpg',
           description: 'هاست پرسرعت SSD با پشتیبانی ۲۴ ساعته',
           longDescription: 'این سرویس مناسب وب‌سایت‌هایی است که به پایداری و سرعت بالا نیاز دارند. با استفاده از جدیدترین سخت‌افزارهای SSD و کشینگ پیشرفته، سایت شما با بهترین سرعت در دسترس بازدیدکنندگان خواهد بود.\n\nویژگی‌ها:\n• نصب رایگان کنترل پنل\n• بک‌آپ روزانه خودکار\n• گواهی SSL رایگان\n• پشتیبانی ۲۴ ساعته از طریق تلگرام\n• ضمانت بازگشت وجه ۷ روزه',
           features: ['فضای ۵ گیگابایت SSD', 'پهنای باند نامحدود', 'گواهی SSL رایگان', 'پشتیبانی ۲۴/۷'] },
-        { id: 2, name: 'دامنه .ir', category: 'domain', price: 150000, unit: 'سالانه', icon: 'fas fa-globe', badge: 'new',
+        { id: 2, name: 'دامنه .ir', category: 'domain', price: 150000, unit: 'سالانه', icon: 'fas fa-globe', badge: 'new', image: 'assets/img/products/domain-ir.jpg',
           description: 'ثبت دامنه .ir با قیمت مناسب',
           longDescription: 'ثبت دامنه .ir با کمترین قیمت و تحویل فوری. پس از ثبت، دسترسی کامل DNS و مدیریت دامنه در اختیار شما قرار می‌گیرد.',
           features: ['ثبت فوری', 'مدیریت DNS کامل', 'قفل انتقال', 'تجدید آسان'] },
-        { id: 3, name: 'سرور مجازی ایران', category: 'server', price: 750000, unit: 'ماهانه', icon: 'fas fa-hdd', badge: 'hot',
+        { id: 3, name: 'سرور مجازی ایران', category: 'server', price: 750000, unit: 'ماهانه', icon: 'fas fa-hdd', badge: 'hot', image: 'assets/img/products/vps-iran.jpg',
           description: 'سرور مجازی با پینگ پایین و آپتایم بالا',
           longDescription: 'سرور مجازی ایران با آی‌پی ثابت و پینگ بسیار مناسب برای کاربران داخل کشور. مناسب میزبانی سایت، ربات تلگرام و سرویس‌های داخلی.',
           features: ['۱ هسته پردازنده', 'رم ۲ گیگابایت', 'فضای ۲۰ گیگ SSD', 'آی‌پی ثابت'] },
-        { id: 4, name: 'کانفیگ V2Ray – ۱ ماهه', category: 'vpn', price: 120000, unit: 'ماهانه', icon: 'fas fa-shield-alt', badge: 'sale',
+        { id: 4, name: 'کانفیگ V2Ray – ۱ ماهه', category: 'vpn', price: 120000, unit: 'ماهانه', icon: 'fas fa-shield-alt', badge: 'sale', image: 'assets/img/products/vpn-v2ray.jpg',
           description: 'کانفیگ پرسرعت VLESS با REALITY',
           longDescription: 'کانفیگ VLESS با پروتکل REALITY که یکی از امن‌ترین و پرسرعت‌ترین متدها در حال حاضر است. مناسب کاربرد روزانه و بدون قطعی.',
           features: ['VLESS + REALITY', 'بدون محدودیت حجم', 'چینش اختصاصی', 'همه اپراتورها'] },
-        { id: 5, name: 'هاست وردپرس', category: 'hosting', price: 350000, unit: 'ماهانه', icon: 'fab fa-wordpress', badge: '',
+        { id: 5, name: 'هاست وردپرس', category: 'hosting', price: 350000, unit: 'ماهانه', icon: 'fab fa-wordpress', badge: '', image: 'assets/img/products/hosting-wordpress.jpg',
           description: 'هاست بهینه شده برای وردپرس',
           longDescription: 'هاست مخصوص وردپرس با LiteSpeed Cache و تنظیمات بهینه. نصب خودکار وردپرس، بک‌آپ روزانه و ضد بدافزار از امکانات این سرویس است.',
           features: ['نصب خودکار وردپرس', 'کش LiteSpeed', 'بک‌آپ روزانه', 'ضد بدافزار'] },
-        { id: 6, name: 'دامنه .com', category: 'domain', price: 850000, unit: 'سالانه', icon: 'fas fa-globe-americas', badge: '',
+        { id: 6, name: 'دامنه .com', category: 'domain', price: 850000, unit: 'سالانه', icon: 'fas fa-globe-americas', badge: '', image: 'assets/img/products/domain-com.jpg',
           description: 'ثبت دامنه بین‌المللی .com',
           longDescription: 'ثبت دامنه بین‌المللی .com با بهترین قیمت. مناسب کسب‌وکارهای بین‌المللی و پروژه‌های جهانی.',
           features: ['ثبت بین‌المللی', 'WHOIS Privacy', 'مدیریت کامل', 'قابل انتقال'] },
-        { id: 7, name: 'سرور مجازی آلمان', category: 'server', price: 1200000, unit: 'ماهانه', icon: 'fas fa-network-wired', badge: 'new',
+        { id: 7, name: 'سرور مجازی آلمان', category: 'server', price: 1200000, unit: 'ماهانه', icon: 'fas fa-network-wired', badge: 'new', image: 'assets/img/products/vps-germany.jpg',
           description: 'سرور مجازی لوکیشن آلمان',
           longDescription: 'سرور مجازی آلمان با کیفیت بالا و پورت ۱ گیگ. مناسب ترید، کانفیگ VPN و سرویس‌های بین‌المللی.',
           features: ['۲ هسته پردازنده', 'رم ۴ گیگابایت', 'فضای ۵۰ گیگ NVMe', 'پورت ۱ گیگ'] },
-        { id: 8, name: 'کانفیگ Trojan – ۳ ماهه', category: 'vpn', price: 300000, unit: 'سه ماهه', icon: 'fas fa-user-shield', badge: '',
+        { id: 8, name: 'کانفیگ Trojan – ۳ ماهه', category: 'vpn', price: 300000, unit: 'سه ماهه', icon: 'fas fa-user-shield', badge: '', image: 'assets/img/products/vpn-trojan.jpg',
           description: 'کانفیگ Trojan با gRPC',
           longDescription: 'کانفیگ Trojan با gRPC روی سرور تمیز، پرسرعت و با پایداری بالا. با خرید سه‌ماهه تخفیف ویژه دریافت می‌کنید.',
           features: ['Trojan + gRPC', 'آی‌پی تمیز', 'چند کاربره', 'ضد فیلتر'] }
@@ -121,22 +122,31 @@ const DEFAULT_DATA = {
     ],
     projects: [
         { id: 1, icon: 'fas fa-robot', tag: 'ربات تلگرام', title: 'ربات فروشگاهی دو زبانه', desc: 'ربات تلگرام فروشگاهی با پنل ادمین وب، درگاه پرداخت و پشتیبانی از فارسی و انگلیسی.', tech: 'React,Cloudflare Workers,KV',
+          image: 'assets/img/projects/p1-bot-1.jpg', gallery: ['assets/img/projects/p1-bot-1.jpg', 'assets/img/projects/p1-bot-2.jpg', 'assets/img/projects/p1-bot-3.jpg'],
           longDescription: 'یک فروشگاه کامل داخل تلگرام که مدیریت آن از پنل ادمین تحت وب انجام می‌شود؛ بدون نیاز به سرور گران و بدون دغدغه نگهداری.\n\n• نمایش محصولات و دسته‌بندی‌ها به فارسی و انگلیسی\n• سبد خرید، کد تخفیف و پرداخت آنلاین\n• ارسال خودکار فاکتور و تحویل لحظه‌ای سفارش\n• گزارش فروش روزانه، ماهانه و نمودار رشد در پنل\n\nکل زیرساخت روی Cloudflare Workers و KV اجرا می‌شود؛ به همین دلیل زمان پاسخ‌دهی پایین، آپ‌تایم بالا و هزینه نگهداری تقریباً صفر است.' },
         { id: 2, icon: 'fas fa-globe', tag: 'وب‌سایت', title: 'سایت شرکتی مدرن', desc: 'طراحی و توسعه وب‌سایت شرکتی ریسپانسیو با پنل مدیریت محتوا و SEO بهینه.', tech: 'Next.js,Tailwind,TypeScript',
+          image: 'assets/img/projects/p2-corp-1.jpg', gallery: ['assets/img/projects/p2-corp-1.jpg', 'assets/img/projects/p2-corp-2.jpg', 'assets/img/projects/p2-corp-3.jpg'],
           longDescription: 'وب‌سایت شرکتی با تمرکز بر سرعت، سئو و ظاهر حرفه‌ای ساخته شد تا معرفی خدمات و جذب مشتری ساده باشد.\n\n• طراحی واکنش‌گرا برای موبایل، تبلت و دسکتاپ\n• پنل مدیریت محتوا برای ویرایش متن‌ها و تصاویر توسط خود کارفرما\n• ساختار سئوی فنی: متا تگ‌ها، Schema و نقشه سایت\n• امتیاز بالای سرعت در Lighthouse و Core Web Vitals\n\nپروژه با Next.js و Tailwind CSS پیاده‌سازی شده و روی زیرساخت ابری با SSL رایگان منتشر شده است.' },
         { id: 3, icon: 'fas fa-network-wired', tag: 'زیرساخت', title: 'پنل مدیریت VPN', desc: 'پنل مدیریت کاربران VPN با پشتیبانی از پروتکل‌های VLESS، VMess و Trojan.', tech: 'Python,Docker,gRPC',
+          image: 'assets/img/projects/p3-vpn-1.jpg', gallery: ['assets/img/projects/p3-vpn-1.jpg', 'assets/img/projects/p3-vpn-2.jpg', 'assets/img/projects/p3-vpn-3.jpg'],
           longDescription: 'پنلی برای مدیریت متمرکز کاربران و کانفیگ‌ها، ساخته‌شده برای ادمین‌هایی که چندین سرور و صدها کاربر دارند.\n\n• ساخت و تحویل خودکار کانفیگ برای VLESS، VMess و Trojan\n• محدودیت حجم و تاریخ انقضا برای هر کاربر\n• گزارش مصرف و نمودار ترافیک\n• اجرا با Docker و به‌روزرسانی بدون قطعی سرویس\n\nارتباط پنل با سرورها از طریق gRPC انجام می‌شود تا مدیریت چند سرور هم‌زمان سریع و امن باشد.' },
         { id: 4, icon: 'fas fa-chart-line', tag: 'داشبورد', title: 'داشبورد تحلیلی', desc: 'داشبورد تحلیلی Realtime با نمودارهای تعاملی و گزارش‌گیری خودکار.', tech: 'React,Chart.js,API',
+          image: 'assets/img/projects/p4-dash-1.jpg', gallery: ['assets/img/projects/p4-dash-1.jpg', 'assets/img/projects/p4-dash-2.jpg', 'assets/img/projects/p4-dash-3.jpg'],
           longDescription: 'داشبوردی که همه شاخص‌های کلیدی کسب‌وکار را در یک نگاه نشان می‌دهد و داده‌ها را لحظه‌ای به‌روز می‌کند.\n\n• نمودارهای تعاملی فروش، بازدید و نرخ تبدیل\n• فیلتر بازه زمانی و مقایسه دوره‌ای\n• گزارش‌گیری خودکار و خروجی Excel و PDF\n• هشدار هوشمند هنگام افت شاخص‌ها\n\nداده‌ها از REST API خوانده می‌شوند و رابط کاربری با React و Chart.js ساخته شده تا روی موبایل هم روان اجرا شود.' },
         { id: 5, icon: 'fas fa-plug', tag: 'API', title: 'API بک‌اند قدرتمند', desc: 'طراحی REST API با احراز هویت JWT، کشینگ و مستندسازی Swagger.', tech: 'Python,FastAPI,Redis',
+          image: 'assets/img/projects/p5-api-1.jpg', gallery: ['assets/img/projects/p5-api-1.jpg', 'assets/img/projects/p5-api-2.jpg'],
           longDescription: 'یک بک‌اند تمیز و مقیاس‌پذیر که چند اپلیکیشن مختلف روی آن سوار می‌شوند.\n\n• احراز هویت با JWT و سطح‌بندی دسترسی\n• کشینگ با Redis برای کاهش چشمگیر زمان پاسخ\n• مستندسازی کامل Swagger برای تیم فرانت‌اند\n• تست خودکار و CI برای انتشار بدون خطا\n\nپیاده‌سازی با FastAPI انجام شده و روی سرور لینوکسی با Docker و Nginx منتشر می‌شود.' },
         { id: 6, icon: 'fas fa-cloud-upload-alt', tag: 'کلادفلر', title: 'استقرار روی Cloudflare', desc: 'مهاجرت و استقرار کامل زیرساخت روی Cloudflare Pages، Workers و R2.', tech: 'Cloudflare,Workers,R2',
+          image: 'assets/img/projects/p6-cloud-1.jpg', gallery: ['assets/img/projects/p6-cloud-1.jpg', 'assets/img/projects/p6-cloud-2.jpg'],
           longDescription: 'مهاجرت کامل یک سرویس از هاست اشتراکی به زیرساخت مدرن کلادفلر؛ سریع‌تر، ارزان‌تر و پایدارتر.\n\n• انتقال DNS و تنظیمات امنیتی به Cloudflare\n• انتشار سایت روی Pages با بیلد خودکار از مخزن Git\n• اجرای منطق سرور روی Workers و ذخیره فایل‌ها روی R2\n• کشینگ هوشمند و کاهش زمان بارگذاری تا چند برابر\n\nنتیجه: بدون سرور ثابت، بدون هزینه اضافی و با آپ‌تایم بالا در تمام ساعات شبانه‌روز.' },
         { id: 7, icon: 'fas fa-shopping-bag', tag: 'فول‌استک', title: 'فروشگاه اینترنتی', desc: 'ساخت فروشگاه اینترنتی با سبد خرید، درگاه پرداخت، پنل ادمین و مدیریت سفارش‌ها.', tech: 'Next.js,PostgreSQL,Tailwind',
+          image: 'assets/img/projects/p7-shop-1.jpg', gallery: ['assets/img/projects/p7-shop-1.jpg', 'assets/img/projects/p7-shop-2.jpg', 'assets/img/projects/p7-shop-3.jpg'],
           longDescription: 'یک فروشگاه اینترنتی کامل با تجربه کاربری ساده برای مشتری و مدیریت آسان برای فروشنده.\n\n• جست‌وجو و فیلتر سریع محصولات\n• سبد خرید، پرداخت امن و پیگیری سفارش\n• پنل ادمین برای موجودی، قیمت‌گذاری و کد تخفیف\n• ایمیل و پیامک اطلاع‌رسانی خودکار\n\nپایگاه‌داده PostgreSQL و فرانت‌اند Next.js انتخاب شد تا هم امنیت داده‌ها و هم سرعت صفحات بالا باشد.' },
         { id: 8, icon: 'fas fa-mobile-alt', tag: 'PWA', title: 'وب اپلیکیشن PWA', desc: 'توسعه وب اپلیکیشن پیش‌رونده با قابلیت نصب روی موبایل و کار آفلاین.', tech: 'React,PWA,IndexedDB',
+          image: 'assets/img/projects/p8-pwa-1.jpg', gallery: ['assets/img/projects/p8-pwa-1.jpg', 'assets/img/projects/p8-pwa-2.jpg', 'assets/img/projects/p8-pwa-3.jpg'],
           longDescription: 'اپلیکیشنی که بدون فروشگاه اپلیکیشن روی گوشی کاربر نصب می‌شود و آفلاین هم کار می‌کند.\n\n• نصب مستقیم از مرورگر روی صفحه اصلی گوشی\n• ذخیره اطلاعات در IndexedDB و استفاده آفلاین\n• همگام‌سازی خودکار با سرور پس از اتصال\n• نوتیفیکیشن و آیکون اختصاصی اپلیکیشن\n\nبرای کسب‌وکارهایی مناسب است که می‌خواهند با هزینه کم، تجربه‌ای شبیه اپلیکیشن نیتیو به کاربر بدهند.' },
         { id: 9, icon: 'fas fa-robot', tag: 'هوش مصنوعی', title: 'چت‌بات هوشمند', desc: 'چت‌بات متصل به API هوش مصنوعی با پشتیبانی از چندین زبان و حافظه مکالمه.', tech: 'Python,OpenAI,Telegram',
+          image: 'assets/img/projects/p9-ai-1.jpg', gallery: ['assets/img/projects/p9-ai-1.jpg', 'assets/img/projects/p9-ai-2.jpg', 'assets/img/projects/p9-ai-3.jpg'],
           longDescription: 'چت‌باتی که مثل یک پشتیبان انسانی پاسخ می‌دهد و مکالمه را به خاطر می‌سپارد.\n\n• پاسخ‌گویی هوشمند با استفاده از API هوش مصنوعی\n• حافظه مکالمه برای هر کاربر و ادامه گفتگو\n• پشتیبانی از فارسی، انگلیسی و چند زبان دیگر\n• انتقال گفتگو به اپراتور انسانی در موارد خاص\n\nبرای پشتیبانی فروشگاه‌ها و پاسخ‌گویی شبانه‌روزی به سؤالات پرتکرار طراحی شده است.' }
     ],
     contactCards: [
@@ -159,11 +169,30 @@ DEFAULT_DATA.contentLinks = {};
 Object.values(CONTENT_SECTIONS).forEach(section => {
     Object.keys(section.visible).forEach(key => { DEFAULT_DATA.visible[key] = true; });
 });
+// Starter products/projects published before bundled photos existed are saved
+// server-side without an `image`/`gallery` field (mergeRemote would otherwise
+// keep them icon-only forever). Fill the bundled visuals back in, but never
+// override anything the admin touched: an uploaded photo (even an empty string
+// after «حذف عکس») or a renamed card stays exactly as saved.
+function applyDefaultMedia(data) {
+    ['products', 'projects'].forEach(list => {
+        (data[list] || []).forEach(item => {
+            const def = (DEFAULT_DATA[list] || []).find(d => d.id === item.id);
+            if (!def || !def.image || item.name !== def.name) return;
+            if ((item.image === undefined || item.image === null) && def.image) item.image = def.image;
+            if (list === 'projects' && (!item.gallery || !item.gallery.length) && item.gallery !== null && def.gallery) {
+                item.gallery = def.gallery.slice();
+            }
+        });
+    });
+    return data;
+}
 function normalizeContent(data) {
     data.textsEn = {...CONTENT_EN, ...(data.textsEn || {})};
     data.itemTranslations = data.itemTranslations || {};
     data.extraContent = {header: [], footer: [], ...(data.extraContent || {})};
     data.contentLinks = data.contentLinks || {};
+    applyDefaultMedia(data);
     return data;
 }
 
@@ -503,7 +532,19 @@ function renderShop(container, opts={}) {
     const { category='all', limit=0, showFilters=true } = opts;
     if (!SITE.shopEnabled) {
         container.dataset.shopSig = 'disabled';
-        container.innerHTML = `<div class="shop-disabled" role="status"><div class="maintenance-orbit" data-visible="shopDisabled_animation" aria-hidden="true"><i class="fas fa-tools"></i><span></span></div><h3 data-text="shopDisabled_title">${escapeContent(txt('shopDisabled_title'))}</h3><p data-text="shopDisabled_desc">${escapeContent(txt('shopDisabled_desc'))}</p><p data-text="shopDisabled_extra">${escapeContent(txt('shopDisabled_extra'))}</p><a class="btn btn-outline" data-visible="shopDisabled_support" data-content-link="shopDisabled_support" href="contact.html"><span data-text="support">${escapeContent(txt('support'))}</span></a></div>`;
+        container.innerHTML = `<div class="shop-disabled" role="status">
+            <div class="maintenance-orbit" data-visible="shopDisabled_animation" aria-hidden="true">
+                <span class="mo-ring mo-ring--outer"></span>
+                <span class="mo-ring mo-ring--inner"></span>
+                <span class="mo-glow"></span>
+                <span class="mo-core"><i class="fas fa-screwdriver-wrench"></i></span>
+                <span class="mo-spark mo-spark--1"></span><span class="mo-spark mo-spark--2"></span><span class="mo-spark mo-spark--3"></span>
+            </div>
+            <h3 data-text="shopDisabled_title">${escapeContent(txt('shopDisabled_title'))}</h3>
+            <p data-text="shopDisabled_desc">${escapeContent(txt('shopDisabled_desc'))}</p>
+            <p data-text="shopDisabled_extra">${escapeContent(txt('shopDisabled_extra'))}</p>
+            <a class="btn btn-outline" data-visible="shopDisabled_support" data-content-link="shopDisabled_support" href="contact.html"><span data-text="support">${escapeContent(txt('support'))}</span></a>
+        </div>`;
         if (typeof applyContentControls === 'function') applyContentControls();
         return;
     }
@@ -866,6 +907,63 @@ function refreshShopEverywhere() {
         renderShop(el, {category:'all', limit:parseInt(el.dataset.limit)||0, showFilters:el.dataset.showFilters!=='false'});
     });
     document.dispatchEvent(new Event('shop-slider-refresh'));
+}
+
+// ============== Full-site maintenance mode ==============
+// When the admin enables SITE.maintenanceMode, every public page is replaced
+// by a single animated «در حال بروزرسانی» screen and all other access is
+// blocked. The admin panel never gets the overlay, so the switch can always
+// be turned off again. maintenance-gate.js shows a minimal version of this
+// screen before app.js even loads.
+const MAINTENANCE_CACHE_KEY = 'amir_maintenance_v1';
+function maintenanceScreenHtml() {
+    const socials = contentItems('socials').slice(0, 6).map(s =>
+        `<a href="${s.url || '#'}" ${s.url && s.url.startsWith('http') ? 'target="_blank" rel="noopener"' : ''} title="${escapeContent(s.name)}" style="--s-color:${s.color || 'var(--primary)'}"><i class="${s.icon}"></i></a>`).join('');
+    return `
+    <div class="maintenance-screen" id="maintenanceScreen" role="alert" aria-live="assertive">
+        <div class="ms-bg" aria-hidden="true">
+            <span class="ms-grid"></span>
+            <span class="ms-glow ms-glow--1"></span>
+            <span class="ms-glow ms-glow--2"></span>
+            <span class="ms-particle ms-p1"></span><span class="ms-particle ms-p2"></span><span class="ms-particle ms-p3"></span>
+            <span class="ms-particle ms-p4"></span><span class="ms-particle ms-p5"></span><span class="ms-particle ms-p6"></span>
+        </div>
+        <div class="ms-content">
+            <div class="ms-visual" aria-hidden="true">
+                <span class="ms-ring ms-ring--outer"></span>
+                <span class="ms-ring ms-ring--mid"></span>
+                <span class="ms-ring ms-ring--inner"></span>
+                <i class="fas fa-gear ms-gear ms-gear--1"></i>
+                <i class="fas fa-gear ms-gear ms-gear--2"></i>
+                <i class="fas fa-gear ms-gear ms-gear--3"></i>
+                <span class="ms-core"><i class="fas fa-screwdriver-wrench"></i></span>
+            </div>
+            <div class="ms-brand"><i class="fas fa-code"></i><span data-text="brand">${escapeContent(txt('brand'))}</span></div>
+            <h1 class="ms-title" data-text="maintenance_title">${escapeContent(txt('maintenance_title'))}</h1>
+            <p class="ms-desc" data-text="maintenance_desc">${escapeContent(txt('maintenance_desc'))}</p>
+            <div class="ms-progress" aria-hidden="true"><span></span></div>
+            ${socials ? `<div class="ms-socials" aria-label="${escapeContent(txt('footer_label_7'))}">${socials}</div>` : ''}
+            <p class="ms-foot" dir="ltr">${escapeContent(txt('copyright'))}</p>
+        </div>
+    </div>`;
+}
+function applyMaintenanceMode() {
+    if (!document.body.classList.contains('public-site')) return;
+    const on = SITE.maintenanceMode === true;
+    document.body.classList.toggle('maintenance-on', on);
+    const screen = document.getElementById('maintenanceScreen');
+    const gate = document.getElementById('maintenanceGate');
+    if (gate) gate.remove();
+    if (on) {
+        if (!screen) {
+            document.body.insertAdjacentHTML('beforeend', maintenanceScreenHtml());
+            if (typeof applyContentControls === 'function') applyContentControls();
+        }
+        try { localStorage.setItem(MAINTENANCE_CACHE_KEY, '1'); } catch (e) { /* private mode */ }
+    } else {
+        if (screen) screen.remove();
+        try { localStorage.setItem(MAINTENANCE_CACHE_KEY, '0'); } catch (e) { /* private mode */ }
+    }
 }
 
 // ============== Animated overlays (shared by shop + projects) ==============
@@ -1255,7 +1353,9 @@ async function handleCheckoutSubmit(e) {
         });
         const serverResp = await response.json().catch(() => ({}));
         if (!response.ok || !serverResp.ok) {
-            throw new Error(serverResp.code === 'SHOP_UNAVAILABLE' ? txt('shopDisabled_title') : txt('orderError'));
+            throw new Error(serverResp.code === 'SITE_IN_MAINTENANCE' ? txt('maintenance_title')
+                : serverResp.code === 'SHOP_UNAVAILABLE' ? txt('shopDisabled_title')
+                : txt('orderError'));
         }
         // The server returns a deep link built only from the username obtained
         // from the bot token that the admin webhooked in the panel. Never fall
@@ -1471,15 +1571,95 @@ function renderFeaturesGrid() {
             <p>${escapeContent(f.desc)}</p>
         </div>`).join('');
 }
+// ---- Media (gallery) slider: crossfade slides with dots, arrows and swipe ----
+function mediaSlidesHtml(p, opts = {}) {
+    const slides = (p.gallery && p.gallery.length) ? p.gallery : (p.image ? [p.image] : []);
+    if (!slides.length) return '';
+    const multiple = slides.length > 1;
+    return `<div class="media-slider${multiple ? '' : ' is-single'}${opts.hero ? ' media-slider--hero' : ''}" data-media-slider${multiple && opts.autoplay ? ` data-autoplay="${opts.autoplay}"` : ''}>
+        ${slides.map((src, i) => `<div class="media-slide${i === 0 ? ' is-active' : ''}"${i ? ' aria-hidden="true"' : ''}><img src="${src}" alt="${escapeContent(p.title || p.name || '')}" loading="lazy"></div>`).join('')}
+        ${multiple ? `
+        <div class="media-dots">${slides.map((_, i) => `<button type="button" class="media-dot${i === 0 ? ' is-active' : ''}" data-media-dot="${i}" aria-label="اسلاید ${toPersianNum(i + 1)}"></button>`).join('')}</div>
+        <span class="media-count" aria-hidden="true"><i class="fas fa-images"></i> ${toPersianNum(slides.length)}</span>
+        ${opts.arrows ? `
+        <button type="button" class="media-arrow media-arrow--prev" data-media-prev aria-label="${escapeContent(txt('previousSlide'))}"><i class="fas fa-chevron-right"></i></button>
+        <button type="button" class="media-arrow media-arrow--next" data-media-next aria-label="${escapeContent(txt('nextSlide'))}"><i class="fas fa-chevron-left"></i></button>` : ''}` : ''}
+    </div>`;
+}
+function initMediaSliders(scope) {
+    (scope || document).querySelectorAll('[data-media-slider]').forEach(root => {
+        if (root.dataset.mediaReady === '1') return;
+        const slides = Array.from(root.querySelectorAll('.media-slide'));
+        if (slides.length < 2) { root.dataset.mediaReady = '1'; return; }
+        root.dataset.mediaReady = '1';
+        const dots = Array.from(root.querySelectorAll('[data-media-dot]'));
+        const prevBtn = root.querySelector('[data-media-prev]');
+        const nextBtn = root.querySelector('[data-media-next]');
+        const autoplayMs = parseInt(root.dataset.autoplay || '0', 10) || 0;
+        const reduce = prefersReducedMotion();
+        let index = 0, timer = null, hovering = false, visible = true;
+        let pointerId = null, startX = 0, deltaX = 0;
+
+        function show(next) {
+            index = ((next % slides.length) + slides.length) % slides.length;
+            slides.forEach((s, k) => {
+                s.classList.toggle('is-active', k === index);
+                if (k === index) s.removeAttribute('aria-hidden'); else s.setAttribute('aria-hidden', 'true');
+            });
+            dots.forEach((d, k) => d.classList.toggle('is-active', k === index));
+        }
+        function schedule() {
+            clearTimeout(timer);
+            if (!autoplayMs || reduce || hovering || !visible || document.hidden || !root.isConnected) return;
+            timer = setTimeout(() => show(index + 1), autoplayMs);
+        }
+        if (prevBtn) prevBtn.addEventListener('click', e => { e.stopPropagation(); show(index - 1); schedule(); });
+        if (nextBtn) nextBtn.addEventListener('click', e => { e.stopPropagation(); show(index + 1); schedule(); });
+        dots.forEach(d => d.addEventListener('click', e => { e.stopPropagation(); show(+d.dataset.mediaDot); schedule(); }));
+        root.addEventListener('pointerenter', () => { hovering = true; schedule(); });
+        root.addEventListener('pointerleave', () => { hovering = false; schedule(); });
+        root.addEventListener('pointerdown', e => { pointerId = e.pointerId; startX = e.clientX; deltaX = 0; });
+        root.addEventListener('pointermove', e => { if (pointerId !== null && e.pointerId === pointerId) deltaX = e.clientX - startX; });
+        const endDrag = e => {
+            if (pointerId === null || (e && e.pointerId !== pointerId)) return;
+            pointerId = null;
+            const moved = deltaX;
+            if (Math.abs(moved) > 42) {
+                show(index + (moved < 0 ? 1 : -1));
+                // Swallow the click a swipe would otherwise trigger (card open).
+                const kill = ev => { ev.stopPropagation(); ev.preventDefault(); };
+                root.addEventListener('click', kill, { capture: true, once: true });
+                setTimeout(() => root.removeEventListener('click', kill, true), 260);
+            }
+            deltaX = 0;
+            schedule();
+        };
+        root.addEventListener('pointerup', endDrag);
+        root.addEventListener('pointercancel', endDrag);
+        if (typeof IntersectionObserver === 'function') {
+            new IntersectionObserver(entries => {
+                visible = entries.some(en => en.isIntersecting);
+                root.classList.toggle('slider-paused', !visible);
+                schedule();
+            }, { threshold: 0.15 }).observe(root);
+        }
+        document.addEventListener('visibilitychange', schedule);
+        schedule();
+    });
+}
+
 function renderProjectsGrid() {
     const grid = document.getElementById('projectsGrid');
     if (!grid) return;
-    const sig = arrSig(contentItems('projects'), p => [p.id, p.icon || '', shash(p.tag), shash(p.title), shash(p.desc), shash(p.tech), shash(p.longDescription), imgSig(p.image)].join(','));
+    const sig = arrSig(contentItems('projects'), p => [p.id, p.icon || '', shash(p.tag), shash(p.title), shash(p.desc), shash(p.tech), shash(p.longDescription), imgSig(p.image), (p.gallery || []).map(imgSig).join('~')].join(','));
     if (grid.dataset.renderSig === sig && grid.firstChild) return;
     grid.dataset.renderSig = sig;
-    grid.innerHTML = contentItems('projects').map(p => `
+    grid.innerHTML = contentItems('projects').map(p => {
+        const slides = (p.gallery && p.gallery.length) ? p.gallery : (p.image ? [p.image] : []);
+        const media = mediaSlidesHtml(p, { autoplay: 4300 });
+        return `
         <div class="project-card" data-item-list="projects" data-item-id="${p.id}" data-project="${p.id}" tabindex="0" role="button" aria-label="${escapeContent(txt('more'))}: ${escapeContent(p.title || '')}">
-            <div class="project-image${p.image?' has-photo':''}">${p.image?`<img src="${p.image}" alt="${escapeContent(p.title)}" loading="lazy">`:`<i class="${p.icon}"></i>`}<span class="project-image-shine" aria-hidden="true"></span></div>
+            <div class="project-image${slides.length ? ' has-photo' : ''}">${media || `<i class="${p.icon}"></i>`}<span class="project-image-shine" aria-hidden="true"></span></div>
             <div class="project-content">
                 <span class="project-tag">${escapeContent(p.tag||'')}</span>
                 <h3>${escapeContent(p.title||'')}</h3>
@@ -1487,7 +1667,9 @@ function renderProjectsGrid() {
                 <div class="project-tech">${(p.tech||'').split(',').filter(t=>t.trim()).map(t=>`<span>${escapeContent(t.trim())}</span>`).join('')}</div>
                 <span class="project-more">${uiText('more')} <i class="fas fa-chevron-left"></i></span>
             </div>
-        </div>`).join('');
+        </div>`;
+    }).join('');
+    initMediaSliders(grid);
 }
 
 // ============== Project details (animated modal) ==============
@@ -1502,10 +1684,11 @@ function openProjectDetail(pid, sourceEl) {
     const overlay = document.getElementById('projectModal') || createProjectModal();
     overlay.dataset.itemList='projects'; overlay.dataset.itemId=String(pid);
     const hero = overlay.querySelector('.project-detail-hero');
-    hero.classList.toggle('has-photo', !!p.image);
-    hero.innerHTML = p.image
-        ? `<img src="${p.image}" alt="${escapeContent(p.title)}"><span class="project-detail-hero-veil" aria-hidden="true"></span>`
-        : `<i class="${p.icon||'fas fa-briefcase'}"></i><span class="project-detail-hero-veil" aria-hidden="true"></span>`;
+    const slides = (p.gallery && p.gallery.length) ? p.gallery : (p.image ? [p.image] : []);
+    hero.classList.toggle('has-photo', slides.length > 0);
+    const heroMedia = mediaSlidesHtml(p, { hero: true, arrows: true, autoplay: 5200 });
+    hero.innerHTML = (heroMedia || `<i class="${p.icon||'fas fa-briefcase'}"></i>`) + `<span class="project-detail-hero-veil" aria-hidden="true"></span>`;
+    initMediaSliders(hero);
     const tag = overlay.querySelector('.project-detail-tag');
     tag.textContent = p.tag || '';
     tag.style.display = p.tag ? '' : 'none';
@@ -1655,6 +1838,7 @@ function applyTexts() {
 }
 // Re-render the entire public page from current SITE data.
 function renderSitePage() {
+    applyMaintenanceMode();
     applyTexts();
     renderPhotos();
     renderSocials();
@@ -1724,6 +1908,7 @@ window.refreshShopEverywhere=refreshShopEverywhere;
 window.openProjectDetail=openProjectDetail; window.closeProjectDetail=closeProjectDetail;
 window.initShopSlider=initShopSlider; window.decorateCards=decorateCards; window.observeCardFx=observeCardFx; window.initMotionBudget=initMotionBudget;
 window.renderSitePage=renderSitePage; window.initSync=initSync;
+window.applyMaintenanceMode=applyMaintenanceMode; window.initMediaSliders=initMediaSliders;
 window.fetchRemoteData=fetchRemoteData; window.pushDataToServer=pushDataToServer;
 window.siteSyncState=siteSyncState; window.emitSync=emitSync;
 

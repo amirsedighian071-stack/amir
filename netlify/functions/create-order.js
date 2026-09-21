@@ -80,6 +80,9 @@ exports.handler = async (event) => {
   try {
     const payload = JSON.parse(event.body || '{}');
     const site = await readData();
+    if (site?.maintenanceMode === true) {
+      return respond(503, {ok:false, code:'SITE_IN_MAINTENANCE', error:'سایت در حال بروزرسانی است.'});
+    }
     if (site?.shopEnabled === false || site?.visible?.checkoutForm === false || site?.visible?.checkoutSubmit === false) {
       return respond(503, {ok:false, code:'SHOP_UNAVAILABLE', error:'فروشگاه در حال بروزرسانی است.'});
     }

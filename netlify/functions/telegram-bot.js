@@ -12,6 +12,7 @@ const {
 const {
   addPendingAdminReply,
   findPendingAdminReply,
+  recentSupportSessions,
   touchSession
 } = require('./lib/support');
 
@@ -226,63 +227,135 @@ function supportHeader(from, chatId) {
   return `🆘 <b>پشتیبانی</b> — ${escapeHtml(name)} (${escapeHtml(handle)})`;
 }
 
+// The customer's message reaching the admin is the whole point of the relay,
+// so it happens first and unconditionally; the bookkeeping that lets the admin
+// answer (reply-mapping) and the session record are best-effort afterwards.
+// A direct-contact button is attached so the admin can always reach the
+// customer even if the reply-mapping store is unavailable.
 async function forwardToAdmin(config, event, chatId, from, content) {
   const header = supportHeader(from, chatId);
+  const username = normaliseTelegramUsername(from && from.username);
+  const markup = username
+    ? { reply_markup: { inline_keyboard: [[{ text: '💬 تماس مستقیم با مشتری', url: `https://t.me/${username}` }]] } }
+    : {};
   let adminMsg;
   if (content.kind === 'text') {
-    adminMsg = await sendMessage(config, config.chatId, `${header}\n🗨 ${escapeHtml(content.value)}`);
+    adminMsg = await sendMessage(config, config.chatId, `${header}\n🗨 ${escapeHtml(content.value)}`, markup);
   } else if (content.kind === 'photo') {
     adminMsg = await telegramApi(config, 'sendPhoto', {
       chat_id: config.chatId,
       photo: content.value,
-      caption: header + (content.caption ? `\n${content.caption}` : '')
+      caption: header + (content.caption ? `\n${content.caption}` : ''),
+      ...markup
     });
   } else if (content.kind === 'video') {
     adminMsg = await telegramApi(config, 'sendVideo', {
       chat_id: config.chatId,
       video: content.value,
-      caption: header + (content.caption ? `\n${content.caption}` : '')
+      caption: header + (content.caption ? `\n${content.caption}` : ''),
+      ...markup
     });
   } else if (content.kind === 'document') {
     adminMsg = await telegramApi(config, 'sendDocument', {
       chat_id: config.chatId,
       document: content.value,
-      caption: header + (content.caption ? `\n${content.caption}` : '')
+      caption: header + (content.caption ? `\n${content.caption}` : ''),
+      ...markup
     });
   } else {
-    adminMsg = await sendMessage(config, config.chatId, `${header}\n📎 [محتوای ${content.value}]`);
+    adminMsg = await sendMessage(config, config.chatId, `${header}\n📎 [محتوای ${content.value}]`, markup);
   }
   const adminMsgId = adminMsg && adminMsg.message_id;
-  if (adminMsgId) await addPendingAdminReply(adminMsgId, chatId);
+  if (adminMsgId) {
+    try {
+      await addPendingAdminReply(adminMsgId, chatId);
+    } catch (error) {
+      // The admin still got the message; answering via reply just won't route
+      // until the store is back (the direct-contact button still works).
+      console.log('support reply-mapping save failed:', error && error.message);
+    }
+  }
 }
 
-// The admin replies by answering the message the bot forwarded to them.
-async function handleAdminReply(config, message) {
-  const replyTo = message.reply_to_message;
-  if (!replyTo || replyTo.message_id === undefined) return;
-  const pending = await findPendingAdminReply(replyTo.message_id);
-  if (!pending) return;
+async function deliverToCustomer(config, message, userChatId) {
   if (message.text) {
-    await sendPlainMessage(config, pending.userChatId, message.text);
+    await sendPlainMessage(config, userChatId, message.text);
   } else if (message.photo) {
     const photo = message.photo[message.photo.length - 1];
     await telegramApi(config, 'sendPhoto', {
-      chat_id: pending.userChatId,
+      chat_id: userChatId,
       photo: photo.file_id,
       caption: message.caption || ''
     });
   } else if (message.video) {
     await telegramApi(config, 'sendVideo', {
-      chat_id: pending.userChatId,
+      chat_id: userChatId,
       video: message.video.file_id,
       caption: message.caption || ''
     });
   } else if (message.document) {
     await telegramApi(config, 'sendDocument', {
-      chat_id: pending.userChatId,
+      chat_id: userChatId,
       document: message.document.file_id,
       caption: message.caption || ''
     });
+  }
+}
+
+// The admin replies by answering the message the bot forwarded to them.
+async function handleAdminReply(config, message) {
+  const replyTo = message.reply_to_message;
+  if (!replyTo || replyTo.message_id === undefined) return false;
+  const pending = await findPendingAdminReply(replyTo.message_id);
+  if (!pending) return false;
+  await deliverToCustomer(config, message, pending.userChatId);
+  try { await touchSession(pending.userChatId, {}); } catch (error) { /* best effort */ }
+  return true;
+}
+
+// Admins naturally answer in the same chat without pressing «reply». When
+// exactly one customer has been talking to support in the last few minutes,
+// route the free message there so the relay never feels dead.
+const ADMIN_FREE_ROUTE_WINDOW = 10 * 60 * 1000;
+async function handleAdminFreeMessage(config, message) {
+  const chatId = message.chat.id;
+  let sessions = [];
+  try { sessions = await recentSupportSessions(ADMIN_FREE_ROUTE_WINDOW); } catch (error) { return; }
+  if (!sessions.length) return; // the admin's own note; nothing to route
+  if (sessions.length > 1) {
+    await sendMessage(config, chatId, '🤔 چند گفتگوی پشتیبانی هم‌زمان فعال است؛ پاسخ را روی پیام همان مشتری ریپلای کنید تا فقط به او برسد.').catch(() => {});
+    return;
+  }
+  const target = sessions[0];
+  const label = target.name || (target.username ? `@${target.username}` : target.chatId);
+  try {
+    await deliverToCustomer(config, message, target.chatId);
+    await sendMessage(config, chatId, `✅ پاسخ شما برای ${escapeHtml(label)} ارسال شد.`).catch(() => {});
+  } catch (error) {
+    await sendMessage(config, chatId, '⚠️ ارسال پاسخ به مشتری ناموفق بود (احتمالاً ربات را مسدود کرده است).').catch(() => {});
+  }
+}
+
+// Repairs a webhook registered by an older build (e.g. without callback_query
+// in allowed_updates), which would silently kill every inline button such as
+// «ارتباط با پشتیبانی». Cheap enough to run on each /start.
+async function ensureWebhookHealth(config, event) {
+  const siteUrl = resolveSiteUrl(config, event);
+  if (!siteUrl) return;
+  const desired = `${siteUrl}/.netlify/functions/telegram-bot`;
+  try {
+    const info = await telegramApi(config, 'getWebhookInfo', {});
+    const updates = Array.isArray(info && info.allowed_updates) ? info.allowed_updates : [];
+    const complete = !updates.length || (updates.includes('message') && updates.includes('callback_query'));
+    if ((info && info.url) === desired && complete) return;
+    await telegramApi(config, 'setWebhook', {
+      url: desired,
+      allowed_updates: ['message', 'callback_query'],
+      drop_pending_updates: false
+    });
+    console.log('Telegram webhook self-healed (url/allowed_updates).');
+  } catch (error) {
+    console.log('webhook self-heal failed:', error && error.message);
   }
 }
 
@@ -425,6 +498,7 @@ exports.handler = async (event) => {
       }
       // Plain /start: welcome + main menu with the three sections.
       const siteUrl = resolveSiteUrl(config, event);
+      await ensureWebhookHealth(config, event);
       await sendMessage(
         config,
         chatId,
@@ -436,10 +510,19 @@ exports.handler = async (event) => {
       return { statusCode: 200, body: 'ok' };
     }
 
-    // Admin chat: only relay replies that answer a forwarded customer
-    // message; everything else from the admin is their own business.
+    // Admin chat: relay replies that answer a forwarded customer message;
+    // free (non-reply) answers go to the only recent customer session.
     if (isAdmin) {
-      await handleAdminReply(config, message);
+      const hasContent = Boolean(message.text || message.photo || message.video || message.document);
+      if (message.reply_to_message && hasContent) {
+        try {
+          await handleAdminReply(config, message);
+        } catch (error) {
+          await sendMessage(config, chatId, '⚠️ ارسال پاسخ به مشتری ناموفق بود (احتمالاً ربات را مسدود کرده است).').catch(() => {});
+        }
+      } else if (!text.startsWith('/') && hasContent) {
+        await handleAdminFreeMessage(config, message);
+      }
       return { statusCode: 200, body: 'ok' };
     }
 
@@ -475,9 +558,8 @@ exports.handler = async (event) => {
         await sendMessage(config, chatId, '🆘 پشتیبانی فعلاً فعال نیست؛ لطفاً از سایت با ما در ارتباط باشید.');
         return { statusCode: 200, body: 'ok' };
       }
-      await touchSession(chatId, { username: from.username || '', name: [from.first_name, from.last_name].filter(Boolean).join(' ') });
-      const file = message.photo[message.photo.length - 1];
-      await forwardToAdmin(config, event, chatId, from, { kind: 'photo', value: file.file_id, caption: String(message.caption || '').slice(0, 300) });
+      await forwardToAdmin(config, event, chatId, from, { kind: 'photo', value: message.photo[message.photo.length - 1].file_id, caption: String(message.caption || '').slice(0, 300) });
+      touchSession(chatId, { username: from.username || '', name: [from.first_name, from.last_name].filter(Boolean).join(' ') }).catch(err => console.log('support session save failed:', err && err.message));
       await sendMessage(config, chatId, '✅ پیام شما به پشتیبانی ارسال شد؛ پاسخ به‌زودی همین‌جا ثبت می‌شود.');
       return { statusCode: 200, body: 'ok' };
     }
@@ -494,8 +576,8 @@ exports.handler = async (event) => {
         await sendMessage(config, chatId, '🆘 پشتیبانی فعلاً فعال نیست؛ لطفاً از سایت با ما در ارتباط باشید.');
         return { statusCode: 200, body: 'ok' };
       }
-      await touchSession(chatId, { username: from.username || '', name: [from.first_name, from.last_name].filter(Boolean).join(' ') });
       await forwardToAdmin(config, event, chatId, from, { kind: 'text', value: String(text).slice(0, 4000) });
+      touchSession(chatId, { username: from.username || '', name: [from.first_name, from.last_name].filter(Boolean).join(' ') }).catch(err => console.log('support session save failed:', err && err.message));
       await sendMessage(config, chatId, '✅ پیام شما به پشتیبانی ارسال شد؛ پاسخ به‌زودی همین‌جا ثبت می‌شود.');
       return { statusCode: 200, body: 'ok' };
     }
@@ -503,10 +585,10 @@ exports.handler = async (event) => {
     if (message.video || message.document) {
       // Media without a pending receipt: relay as a support message.
       if (config.chatId) {
-        await touchSession(chatId, { username: from.username || '', name: [from.first_name, from.last_name].filter(Boolean).join(' ') });
         const kind = message.video ? 'video' : 'document';
         const file = (message.video || message.document).file_id;
         await forwardToAdmin(config, event, chatId, from, { kind, value: file, caption: String(message.caption || '').slice(0, 300) });
+        touchSession(chatId, { username: from.username || '', name: [from.first_name, from.last_name].filter(Boolean).join(' ') }).catch(err => console.log('support session save failed:', err && err.message));
         await sendMessage(config, chatId, '✅ پیام شما به پشتیبانی ارسال شد؛ پاسخ به‌زودی همین‌جا ثبت می‌شود.');
         return { statusCode: 200, body: 'ok' };
       }

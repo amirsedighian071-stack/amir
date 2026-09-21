@@ -13,6 +13,13 @@ test('checkout respects closed shop and hidden checkout on the server',async()=>
         const response=await handler(event);assert.equal(response.statusCode,503);assert.equal(JSON.parse(response.body).code,'SHOP_UNAVAILABLE');
     }
 });
+test('full-site maintenance mode blocks orders on the server',async()=>{
+    site={maintenanceMode:true};
+    const response=await handler(event);
+    assert.equal(response.statusCode,503);
+    assert.equal(JSON.parse(response.body).code,'SITE_IN_MAINTENANCE');
+    site=null;
+});
 test('hidden name and phone are optional; visible fields remain required',async()=>{
     site=null;assert.equal((await handler(event)).statusCode,400);
     site={visible:{checkoutName:false,checkoutPhone:false}};
