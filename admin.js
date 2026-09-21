@@ -327,7 +327,7 @@ function productForm(product) {
     currentProductImage = p.image || '';
     const form = document.createElement('div');
     form.innerHTML = `
-        <div class="form-group"><label>نام محصول *</label><input type="text" id="m_pName" value="${p.name}"></div>
+        <div class="form-group"><label>نام محصول *</label><input type="text" id="m_pName" value="${escapeHTML(p.name)}"></div>
         <div class="row-3">
             <div class="form-group"><label>دسته</label>
                 <select id="m_pCat">
@@ -345,13 +345,13 @@ function productForm(product) {
                     <option value="sale" ${p.badge==='sale'?'selected':''}>تخفیف</option>
                 </select>
             </div>
-            <div class="form-group"><label>آیکون</label><input type="text" id="m_pIcon" value="${p.icon}" placeholder="مثلاً fas fa-server"></div>
+            <div class="form-group"><label>آیکون</label><input type="text" id="m_pIcon" value="${escapeHTML(p.icon)}" placeholder="مثلاً fas fa-server"></div>
         </div>
-        <div class="form-group"><label>توضیح کوتاه</label><input type="text" id="m_pDesc" value="${p.description||''}"></div>
-        <div class="form-group"><label>توضیحات کامل (جزئیات محصول)</label><textarea id="m_pLong" rows="5" placeholder="توضیحات کامل محصول که در صفحه جزئیات نمایش داده می‌شود...">${p.longDescription||''}</textarea></div>
+        <div class="form-group"><label>توضیح کوتاه</label><input type="text" id="m_pDesc" value="${escapeHTML(p.description||'')}"></div>
+        <div class="form-group"><label>توضیحات کامل (جزئیات محصول)</label><textarea id="m_pLong" rows="5" placeholder="توضیحات کامل محصول که در صفحه جزئیات نمایش داده می‌شود...">${escapeHTML(p.longDescription||'')}</textarea></div>
         <div class="row-2">
-            <div class="form-group"><label>قیمت (تومان) *</label><input type="number" id="m_pPrice" value="${p.price}" min="0"></div>
-            <div class="form-group"><label>واحد</label><input type="text" id="m_pUnit" value="${p.unit||'ماهانه'}"></div>
+            <div class="form-group"><label>قیمت (تومان) *</label><input type="number" id="m_pPrice" value="${escapeHTML(p.price)}" min="0"></div>
+            <div class="form-group"><label>واحد</label><input type="text" id="m_pUnit" value="${escapeHTML(p.unit||'ماهانه')}"></div>
         </div>
         <div class="form-group">
             <label>عکس محصول</label>
@@ -378,7 +378,7 @@ function productForm(product) {
     }, 10);
     function addFeatRow(box, val) {
         const r = document.createElement('div'); r.className = 'mini-row';
-        r.innerHTML = `<input type="text" class="feat-input" value="${val||''}" placeholder="ویژگی..."><button type="button" class="feat-del"><i class="fas fa-times"></i></button>`;
+        r.innerHTML = `<input type="text" class="feat-input" value="${escapeHTML(val||'')}" placeholder="ویژگی..."><button type="button" class="feat-del"><i class="fas fa-times"></i></button>`;
         r.querySelector('.feat-del').addEventListener('click', () => r.remove());
         box.appendChild(r);
     }
@@ -408,7 +408,7 @@ function saveProduct(id) {
     if (id) {
         SITE.products = SITE.products.map(x => x.id === id ? obj : x);
     } else {
-        SITE.products.push(obj);
+        resetNewContentItem('products',obj.id); SITE.products.push(obj);
     }
     saveData(); renderProducts(); refreshShopEverywhere(); closeModal(); markSync('saving'); showAdminToast('محصول ذخیره شد.');
 }
@@ -494,11 +494,11 @@ function socialForm(s) {
     const form = document.createElement('div');
     form.innerHTML = `
         <div class="row-2">
-            <div class="form-group"><label>نام (مثلاً اینستاگرام)</label><input type="text" id="m_sName" value="${s.name}"></div>
-            <div class="form-group"><label>کلاس آیکون</label><input type="text" id="m_sIcon" value="${s.icon}"></div>
+            <div class="form-group"><label>نام (مثلاً اینستاگرام)</label><input type="text" id="m_sName" value="${escapeHTML(s.name)}"></div>
+            <div class="form-group"><label>کلاس آیکون</label><input type="text" id="m_sIcon" value="${escapeHTML(s.icon)}"></div>
         </div>
-        <div class="form-group"><label>لینک کامل</label><input type="text" id="m_sUrl" value="${s.url}" placeholder="https://..."></div>
-        <div class="form-group"><label>رنگ (HEX)</label><input type="color" class="color-input" id="m_sColor" value="${s.color||'#0088cc'}"></div>
+        <div class="form-group"><label>لینک کامل</label><input type="text" id="m_sUrl" value="${escapeHTML(s.url)}" placeholder="https://..."></div>
+        <div class="form-group"><label>رنگ (HEX)</label><input type="color" class="color-input" id="m_sColor" value="${escapeHTML(s.color||'#0088cc')}"></div>
         <div class="form-group"><label>انتخاب آیکون</label><div id="m_sIconPicker"></div></div>`;
     setTimeout(() => {
         form.querySelector('#m_sIconPicker').appendChild(iconPicker(s.icon, ic => form.querySelector('#m_sIcon').value = ic));
@@ -519,7 +519,7 @@ function saveSocial(id) {
     };
     if (!obj.name) { alert('نام را وارد کنید'); return; }
     if (id) SITE.socials = SITE.socials.map(x => x.id===id?obj:x);
-    else SITE.socials.push(obj);
+    else { resetNewContentItem('socials',obj.id); SITE.socials.push(obj); }
     saveData(); renderSocials(); closeModal(); markSync('saving'); showAdminToast('شبکه اجتماعی ذخیره شد.');
 }
 on('addSocialBtn', 'click', () => openModal('افزودن شبکه اجتماعی', socialForm(null), () => saveSocial(0)));
@@ -550,12 +550,12 @@ function contactForm(c) {
     const form = document.createElement('div');
     form.innerHTML = `
         <div class="row-2">
-            <div class="form-group"><label>عنوان</label><input type="text" id="m_cTitle" value="${c.title}"></div>
-            <div class="form-group"><label>آیکون</label><input type="text" id="m_cIcon" value="${c.icon}"></div>
+            <div class="form-group"><label>عنوان</label><input type="text" id="m_cTitle" value="${escapeHTML(c.title)}"></div>
+            <div class="form-group"><label>آیکون</label><input type="text" id="m_cIcon" value="${escapeHTML(c.icon)}"></div>
         </div>
-        <div class="form-group"><label>مقدار (متن نمایشی)</label><input type="text" id="m_cValue" value="${c.value}"></div>
-        <div class="form-group"><label>لینک (اختیاری)</label><input type="text" id="m_cUrl" value="${c.url||''}" placeholder="https:// یا mailto: یا tel:"></div>
-        <div class="form-group"><label>توضیح کوچک</label><input type="text" id="m_cHint" value="${c.hint||''}"></div>
+        <div class="form-group"><label>مقدار (متن نمایشی)</label><input type="text" id="m_cValue" value="${escapeHTML(c.value)}"></div>
+        <div class="form-group"><label>لینک (اختیاری)</label><input type="text" id="m_cUrl" value="${escapeHTML(c.url||'')}" placeholder="https:// یا mailto: یا tel:"></div>
+        <div class="form-group"><label>توضیح کوچک</label><input type="text" id="m_cHint" value="${escapeHTML(c.hint||'')}"></div>
         <div class="form-group"><label>انتخاب آیکون</label><div id="m_cIconPicker"></div></div>`;
     setTimeout(() => form.querySelector('#m_cIconPicker').appendChild(iconPicker(c.icon, ic => form.querySelector('#m_cIcon').value = ic)),10);
     return form;
@@ -575,7 +575,7 @@ function saveContact(id) {
     };
     if (!obj.title) { alert('عنوان را وارد کنید'); return; }
     if (id) SITE.contactCards = SITE.contactCards.map(x => x.id===id?obj:x);
-    else SITE.contactCards.push(obj);
+    else { resetNewContentItem('contactCards',obj.id); SITE.contactCards.push(obj); }
     saveData(); renderContact(); closeModal(); markSync('saving'); showAdminToast('اطلاعات تماس ذخیره شد.');
 }
 on('addContactBtn', 'click', () => openModal('افزودن کارت تماس', contactForm(null), () => saveContact(0)));
@@ -614,14 +614,14 @@ function simpleEditor(config) {
         const wrap = document.createElement('div');
         let html = '';
         config.fields.forEach(f => {
-            if (f.type === 'textarea') html += `<div class="form-group"><label>${f.label}</label><textarea id="e_${f.key}">${item[f.key]||''}</textarea></div>`;
-            else html += `<div class="form-group"><label>${f.label}</label><input type="text" id="e_${f.key}" value="${item[f.key]||''}"></div>`;
+            if (f.type === 'textarea') html += `<div class="form-group"><label>${f.label}</label><textarea id="e_${f.key}">${escapeHTML(item[f.key]||'')}</textarea></div>`;
+            else html += `<div class="form-group"><label>${f.label}</label><input type="text" id="e_${f.key}" value="${escapeHTML(item[f.key]||'')}"></div>`;
         });
         if (config.withImage) {
             html += `<div class="form-group"><label>${config.imageLabel||'عکس'}</label><div id="e_image"></div>
                      <div style="font-size:0.75rem;color:var(--text-muted);">اگر عکسی انتخاب نکنید، آیکون زیر نمایش داده می‌شود.</div></div>`;
         }
-        html += `<div class="form-group"><label>آیکون</label><input type="text" id="e_icon" value="${item.icon||''}"></div><div class="form-group"><label>انتخاب آیکون</label><div id="e_iconPicker"></div></div>`;
+        html += `<div class="form-group"><label>آیکون</label><input type="text" id="e_icon" value="${escapeHTML(item.icon||'')}"></div><div class="form-group"><label>انتخاب آیکون</label><div id="e_iconPicker"></div></div>`;
         wrap.innerHTML = html;
         setTimeout(() => {
             wrap.querySelector('#e_iconPicker').appendChild(iconPicker(item.icon, ic => wrap.querySelector('#e_icon').value = ic));
@@ -642,7 +642,7 @@ function simpleEditor(config) {
             obj[f.key] = el ? el.value : '';
         });
         if (id) SITE[config.dataKey] = SITE[config.dataKey].map(x => x.id===id?obj:x);
-        else SITE[config.dataKey].push(obj);
+        else { resetNewContentItem(config.dataKey,obj.id); SITE[config.dataKey].push(obj); }
         saveData(); render(); closeModal(); if (config.onChange) config.onChange(); showAdminToast('ذخیره شد.');
     }
     on(config.addBtnId, 'click', () => openModal('افزودن', form(null), () => save(0)));
@@ -788,7 +788,7 @@ function renderTextsEditor() {
         const row = document.createElement('div');
         row.className = 'text-edit-row';
         const isLong = val.length > 60 || key.includes('desc') || key.includes('subtitle') || key.includes('intro') || key.includes('_message') || key.includes('_about');
-        row.innerHTML = `<label>${labels[key]||key}</label>${isLong?`<textarea data-tkey="${key}">${val}</textarea>`:`<input type="text" data-tkey="${key}" value="${val}">`}<div></div>`;
+        row.innerHTML = `<label>${labels[key]||key}</label>${isLong?`<textarea data-tkey="${key}">${escapeHTML(val)}</textarea>`:`<input type="text" data-tkey="${key}" value="${escapeHTML(val)}">`}<div></div>`;
         box.appendChild(row);
     });
 }
@@ -1100,6 +1100,7 @@ function initDashboard() {
     updatePhotoPreviews();
     loadAboutTexts();
     renderTextsEditor();
+    refreshContentEditors();
     renderVisibility();
     loadTelegramSettings();
     document.getElementById('shopToggle').checked = SITE.shopEnabled;
@@ -1140,7 +1141,7 @@ function initDashboard() {
             renderProducts(); renderOrders(); renderMessages();
             renderSocials(); renderContact();
             updatePhotoPreviews(); loadAboutTexts();
-            renderVisibility(); loadTelegramSettings();
+            renderVisibility(); loadTelegramSettings(); refreshContentEditors();
             const st = byId('shopToggle'); if (st) st.checked = SITE.shopEnabled;
         });
         markSync(window.__syncOk === false ? 'local' : 'ok');

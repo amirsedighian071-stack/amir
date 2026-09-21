@@ -42,6 +42,9 @@ async function writeData(data) {
   try { fs.writeFileSync(TMP_FILE, JSON.stringify(data)); return true; } catch (e) { return false; }
 }
 
+// Shared reader lets checkout respect published shop/form settings.
+exports.readData = readData;
+
 exports.handler = async (event) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',

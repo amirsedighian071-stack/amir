@@ -1,138 +1,128 @@
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+
+<html dir="rtl" lang="fa">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>امیر صدیقیان – فول‌استک دولوپر و مهندس زیرساخت</title>
-    <meta name="description" content="امیر صدیقیان، برنامه‌نویس فول‌استک وب، متخصص ربات‌های تلگرام و مهندس زیرساخت کلادفلر">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title data-text="home_document_title">امیر صدیقیان – فول‌استک دولوپر و مهندس زیرساخت</title>
+<meta content="امیر صدیقیان، برنامه‌نویس فول‌استک وب، متخصص ربات‌های تلگرام و مهندس زیرساخت کلادفلر" name="description"/>
+<link href="styles.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link crossorigin="" href="https://cdnjs.cloudflare.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet"/>
 </head>
-<body class="public-site">
-    <nav class="navbar" id="navbar">
-        <div class="container nav-container">
-            <a href="index.html" class="logo"><i class="fas fa-code"></i><span data-text="brand">AmirSedighian</span></a>
-            <ul class="nav-menu" id="navMenu">
-                <li><a href="index.html" class="nav-link" data-section="home">خانه</a></li>
-                <li><a href="shop.html" class="nav-link" data-section="shop">فروشگاه</a></li>
-                <li><a href="projects.html" class="nav-link" data-section="projects">نمونه‌کارها</a></li>
-                <li><a href="about.html" class="nav-link" data-section="about">درباره من</a></li>
-                <li><a href="contact.html" class="nav-link" data-section="contact">تماس با من</a></li>
-            </ul>
-            <div class="nav-actions">
-                <button id="themeToggle" class="theme-toggle" title="تغییر تم"><i class="fas fa-moon"></i></button>
-                <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
-            </div>
-        </div>
-    </nav>
-
-    <!-- Hero -->
-    <section class="section hero-section" data-visible="hero">
-        <div class="hero-bg">
-            <div class="floating-shape shape-1"></div>
-            <div class="floating-shape shape-2"></div>
-            <div class="floating-shape shape-3"></div>
-        </div>
-        <div class="container hero-container">
-            <div class="hero-content">
-                <div class="hero-badge"><i class="fas fa-star"></i><span data-text="hero_badge">برنامه‌نویس فول‌استک و مهندس زیرساخت</span></div>
-                <h1 class="hero-title">
-                    <span data-text="hero_title_before">امیر</span>
-                    <span class="gradient-text" data-text="hero_title_grad">صدیقیان</span>
-                </h1>
-                <p class="hero-subtitle" data-text="hero_subtitle">سلام 👋 امیر صدیقیان هستم...</p>
-                <div class="hero-stats" data-visible="stats">
-                    <div class="stat"><span class="stat-number" data-target="50">0</span><span>+</span><span class="stat-label" data-text="stats_projects">پروژه موفق</span></div>
-                    <div class="stat"><span class="stat-number" data-target="5">0</span><span>+</span><span class="stat-label" data-text="stats_years">سال تجربه</span></div>
-                    <div class="stat"><span class="stat-number" data-target="30">0</span><span>+</span><span class="stat-label" data-text="stats_clients">مشتری راضی</span></div>
-                </div>
-            </div>
-            <div class="hero-image">
-                <div class="hero-avatar-wrapper">
-                    <div class="avatar-ring"></div>
-                    <div class="avatar-placeholder" id="heroAvatar"><i class="fas fa-user"></i></div>
-                    <div class="floating-card card-1"><i class="fab fa-react"></i><span>React</span></div>
-                    <div class="floating-card card-2"><i class="fab fa-python"></i><span>Python</span></div>
-                    <div class="floating-card card-3"><i class="fas fa-cloud"></i><span>Cloudflare</span></div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Features / Services -->
-    <section class="section features-section" data-visible="features">
-        <div class="container">
-            <div class="section-header">
-                <h2 data-text="features_title">خدمات من</h2>
-                <p data-text="features_subtitle">خدمات حرفه‌ای در حوزه توسعه و زیرساخت</p>
-            </div>
-            <div class="features-grid" id="featuresGrid"></div>
-            <div class="section-actions" data-visible="features">
-                <a href="shop.html" class="btn btn-primary"><i class="fas fa-shopping-cart"></i> فروشگاه</a>
-                <a href="contact.html" class="btn btn-outline"><i class="fas fa-paper-plane"></i> تماس با من</a>
-            </div>
-        </div>
-    </section>
-
-    <!-- Shop Preview -->
-    <section class="section" data-visible="shopPreview" style="padding-top:3rem;">
-        <div class="container">
-            <div class="section-header">
-                <h2 data-text="shopPreview_title">محصولات پر فروش</h2>
-                <p data-text="shopPreview_subtitle">نمونه‌ای از سرویس‌های ارائه شده در فروشگاه</p>
-            </div>
-            <div data-role="shop-grid" data-limit="8" data-show-filters="false" data-slider="true"></div>
-            <div style="text-align:center;margin-top:2rem;">
-                <a href="shop.html" class="btn btn-primary"><i class="fas fa-th-large"></i> <span data-text="shopPreview_btn">مشاهده همه محصولات</span></a>
-            </div>
-        </div>
-    </section>
-
-    <!-- CTA -->
-    <section class="section cta-section" data-visible="cta_home" style="padding:3rem 0;">
-        <div class="container">
-            <div class="cta-box">
-                <div class="cta-content">
-                    <h2 data-text="cta_home_title">پروژه‌ای دارید؟</h2>
-                    <p data-text="cta_home_desc">همین حالا با من در ارتباط باشید...</p>
-                </div>
-                <a href="contact.html" class="btn btn-primary"><i class="fas fa-comments"></i> <span data-text="cta_home_btn">شروع گفتگو</span></a>
-            </div>
-        </div>
-    </section>
-
-    <footer class="footer" data-visible="footer">
-        <div class="container">
-            <div class="footer-grid">
-                <div class="footer-col">
-                    <a href="index.html" class="logo logo-footer"><i class="fas fa-code"></i><span data-text="brand">AmirSedighian</span></a>
-                    <p data-text="footer_about">توسعه‌دهنده فول‌استک و مهندس زیرساخت.</p>
-                </div>
-                <div class="footer-col">
-                    <h4>دسترسی سریع</h4>
-                    <ul>
-                        <li><a href="index.html">خانه</a></li>
-                        <li><a href="shop.html">فروشگاه</a></li>
-                        <li><a href="projects.html">نمونه‌کارها</a></li>
-                        <li><a href="about.html">درباره من</a></li>
-                        <li><a href="contact.html">تماس با من</a></li>
-                    </ul>
-                </div>
-                <div class="footer-col">
-                    <h4>شبکه‌های اجتماعی</h4>
-                    <div class="social-links" data-role="socials"></div>
-                </div>
-            </div>
-            <div class="footer-bottom">
-                <p>© <span id="currentYear"></span> تمامی حقوق محفوظ است – <span data-text="copyrightName">امیر صدیقیان</span></p>
-            </div>
-        </div>
-    </footer>
-
-    <script src="app.js"></script>
+<body class="public-site" data-page="home">
+<nav class="navbar" data-visible="header" id="navbar">
+<div class="container nav-container">
+<a class="logo" data-content-link="header_logo_1" data-visible="header_logo_1" href="index.html"><i class="fas fa-code"></i><span data-text="brand">AmirSedighian</span></a>
+<ul class="nav-menu" data-visible="header_navmenu_1" id="navMenu">
+<li><a class="nav-link" data-content-link="header_button_7" data-section="home" data-visible="header_button_7" href="index.html"><span data-text="header_label_1">خانه</span></a></li>
+<li><a class="nav-link" data-content-link="header_button_8" data-section="shop" data-visible="header_button_8" href="shop.html"><span data-text="header_label_2">فروشگاه</span></a></li>
+<li><a class="nav-link" data-content-link="header_button_9" data-section="projects" data-visible="header_button_9" href="projects.html"><span data-text="header_label_3">نمونه‌کارها</span></a></li>
+<li><a class="nav-link" data-content-link="header_button_10" data-section="about" data-visible="header_button_10" href="about.html"><span data-text="header_label_4">درباره من</span></a></li>
+<li><a class="nav-link" data-content-link="header_button_11" data-section="contact" data-visible="header_button_11" href="contact.html"><span data-text="header_label_5">تماس با من</span></a></li>
+</ul>
+<div class="nav-actions"><button aria-label="English / فارسی" class="language-toggle" data-visible="header_languageToggle_1" id="languageToggle" type="button">EN</button>
+<button class="theme-toggle" data-visible="header_themeToggle_1" id="themeToggle" title="تغییر تم"><i class="fas fa-moon"></i></button>
+<button class="mobile-menu-btn" data-visible="header_mobileMenuBtn_1" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
+</div>
+</div>
+</nav><main data-visible="page_home"><section class="section hero-section" data-visible="hero">
+<div class="hero-bg" data-visible="home_herobg_1">
+<div class="floating-shape shape-1"></div>
+<div class="floating-shape shape-2"></div>
+<div class="floating-shape shape-3"></div>
+</div>
+<div class="container hero-container">
+<div class="hero-content">
+<div class="hero-badge"><i class="fas fa-star"></i><span data-text="hero_badge">برنامه‌نویس فول‌استک و مهندس زیرساخت</span></div>
+<h1 class="hero-title">
+<span data-text="hero_title_before">امیر</span>
+<span class="gradient-text" data-text="hero_title_grad">صدیقیان</span>
+</h1>
+<p class="hero-subtitle" data-text="hero_subtitle">سلام 👋 امیر صدیقیان هستم...</p>
+<div class="hero-stats" data-visible="stats">
+<div class="stat" data-visible="home_stat_1"><span class="stat-number" data-text="home_stat_value_1"></span><span><span data-text="home_label_2">+</span></span><span class="stat-label" data-text="stats_projects">پروژه موفق</span></div>
+<div class="stat" data-visible="home_stat_2"><span class="stat-number" data-text="home_stat_value_2"></span><span><span data-text="home_label_4">+</span></span><span class="stat-label" data-text="stats_years">سال تجربه</span></div>
+<div class="stat" data-visible="home_stat_3"><span class="stat-number" data-text="home_stat_value_3"></span><span><span data-text="home_label_6">+</span></span><span class="stat-label" data-text="stats_clients">مشتری راضی</span></div>
+</div>
+</div>
+<div class="hero-image" data-visible="home_heroimage_1">
+<div class="hero-avatar-wrapper">
+<div class="avatar-ring"></div>
+<div class="avatar-placeholder" id="heroAvatar"><i class="fas fa-user"></i></div>
+<div class="floating-card card-1" data-visible="home_floatingcard_1"><i class="fab fa-react"></i><span><span data-text="home_label_7">React</span></span></div>
+<div class="floating-card card-2" data-visible="home_floatingcard_2"><i class="fab fa-python"></i><span><span data-text="home_label_8">Python</span></span></div>
+<div class="floating-card card-3" data-visible="home_floatingcard_3"><i class="fas fa-cloud"></i><span><span data-text="home_label_9">Cloudflare</span></span></div>
+</div>
+</div>
+</div>
+</section><section class="section features-section" data-visible="features">
+<div class="container">
+<div class="section-header" data-visible="home_sectionheader_1">
+<h2 data-text="features_title">خدمات من</h2>
+<p data-text="features_subtitle">خدمات حرفه‌ای در حوزه توسعه و زیرساخت</p>
+</div>
+<div class="features-grid" id="featuresGrid"></div>
+<div class="section-actions" data-visible="features">
+<a class="btn btn-primary" data-content-link="home_button_12" data-visible="home_button_12" href="shop.html"><i class="fas fa-shopping-cart"></i><span data-text="home_label_10">فروشگاه</span></a>
+<a class="btn btn-outline" data-content-link="home_button_13" data-visible="home_button_13" href="contact.html"><i class="fas fa-paper-plane"></i><span data-text="home_label_11">تماس با من</span></a>
+</div>
+</div>
+</section><section class="section" data-visible="shopPreview" style="padding-top:3rem;">
+<div class="container">
+<div class="section-header" data-visible="home_sectionheader_2">
+<h2 data-text="shopPreview_title">محصولات پر فروش</h2>
+<p data-text="shopPreview_subtitle">نمونه‌ای از سرویس‌های ارائه شده در فروشگاه</p>
+</div>
+<div data-limit="8" data-role="shop-grid" data-show-filters="false" data-slider="true"></div>
+<div style="text-align:center;margin-top:2rem;">
+<a class="btn btn-primary" data-content-link="home_button_14" data-visible="home_button_14" href="shop.html"><i class="fas fa-th-large"></i> <span data-text="shopPreview_btn">مشاهده همه محصولات</span></a>
+</div>
+</div>
+</section><section class="section cta-section" data-visible="cta_home" style="padding:3rem 0;">
+<div class="container">
+<div class="cta-box">
+<div class="cta-content">
+<h2 data-text="cta_home_title">پروژه‌ای دارید؟</h2>
+<p data-text="cta_home_desc">همین حالا با من در ارتباط باشید...</p>
+</div>
+<a class="btn btn-primary" data-content-link="home_button_15" data-visible="home_button_15" href="contact.html"><i class="fas fa-comments"></i> <span data-text="cta_home_btn">شروع گفتگو</span></a>
+</div>
+</div>
+</section></main>
+<!-- Hero -->
+<!-- Features / Services -->
+<!-- Shop Preview -->
+<!-- CTA -->
+<footer class="footer" data-visible="footer">
+<div class="container">
+<div class="footer-grid">
+<div class="footer-col" data-visible="footer_footercol_1">
+<a class="logo logo-footer" data-content-link="footer_logo_1" data-visible="footer_logo_1" href="index.html"><i class="fas fa-code"></i><span data-text="footer_brand">AmirSedighian</span></a>
+<p data-text="footer_about">توسعه‌دهنده فول‌استک و مهندس زیرساخت.</p>
+</div>
+<div class="footer-col" data-visible="footer_footercol_2">
+<h4><span data-text="footer_label_1">دسترسی سریع</span></h4>
+<ul>
+<li><a data-content-link="footer_button_8" data-visible="footer_button_8" href="index.html"><span data-text="footer_label_2">خانه</span></a></li>
+<li><a data-content-link="footer_button_9" data-visible="footer_button_9" href="shop.html"><span data-text="footer_label_3">فروشگاه</span></a></li>
+<li><a data-content-link="footer_button_10" data-visible="footer_button_10" href="projects.html"><span data-text="footer_label_4">نمونه‌کارها</span></a></li>
+<li><a data-content-link="footer_button_11" data-visible="footer_button_11" href="about.html"><span data-text="footer_label_5">درباره من</span></a></li>
+<li><a data-content-link="footer_button_12" data-visible="footer_button_12" href="contact.html"><span data-text="footer_label_6">تماس با من</span></a></li>
+</ul>
+</div>
+<div class="footer-col" data-visible="footer_footercol_3">
+<h4><span data-text="footer_label_7">شبکه‌های اجتماعی</span></h4>
+<div class="social-links" data-role="socials"></div>
+</div>
+</div>
+<div class="footer-bottom" data-visible="footer_footerbottom_1"><p data-text="copyright" dir="ltr">© 2026 Mr aMir. Built for the web.</p></div>
+</div>
+</footer>
+<script src="content-config.js"></script>
+<script src="content-translations.js"></script><script src="app.js"></script><script src="content.js"></script>
 </body>
 </html>
