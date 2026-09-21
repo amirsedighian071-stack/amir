@@ -10,3 +10,7 @@ node_modules/
 # Browser test output
 /test-results/
 /playwright-report/
+
+# Intermediate image assets (raw generations / search downloads)
+/assets-raw/
+/image-search/

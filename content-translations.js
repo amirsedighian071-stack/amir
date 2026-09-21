@@ -21,6 +21,7 @@ Object.assign(CONTENT_EN, {
     contactForm_title: 'Send a message', contact_name: 'Full name', contact_email: 'Email', contact_phone: 'Phone number', contact_subject: 'Subject', contact_message: 'Your message', contact_send: 'Send message',
     formSuccess: '✓ Your message has been sent. I’ll get back to you soon.',
     shopDisabled_title: 'We’re updating the shop', shopDisabled_desc: 'We’ll be back soon with new products. Thank you for your patience.', shopDisabled_extra: 'Contact support if you need to place an order.',
+    maintenance_title: 'We are updating the site', maintenance_desc: 'Please bear with us — we will be back shortly with new features.',
     footer_about: 'Full-stack developer & infrastructure engineer.',
     addToCart: 'Add to cart', viewCart: 'View cart', cartTitle: 'Shopping cart', cartEmpty: 'Your cart is empty',
     goToShop: 'Visit the shop', cartTotal: 'Total', completeOrder: 'Checkout', continueShopping: 'Continue shopping',

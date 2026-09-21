@@ -63,7 +63,9 @@ exports.handler = async (event) => {
     // Lightweight stamp check (?meta=1) so visitors poll bytes, not megabytes:
     // the full payload (with base64 photos) is only downloaded when it changed.
     if (params.meta === '1') {
-      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, updatedAt }) };
+      // The maintenance flag rides along so the pre-paint gate can block the
+      // whole site without downloading the full (megabyte-scale) payload.
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, updatedAt, maintenanceMode: Boolean(data && data.maintenanceMode) }) };
     }
     return {
       statusCode: 200,

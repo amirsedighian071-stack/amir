@@ -120,10 +120,22 @@ async function findPendingAdminReply(adminMessageId) {
   return entry && entry.userChatId ? { userChatId: entry.userChatId } : null;
 }
 
+// Customers who talked to support inside the given window, most recent first.
+// Used to route an admin's free (non-reply) message to the right customer.
+async function recentSupportSessions(windowMs) {
+  const state = await loadSupportState();
+  const now = Date.now();
+  return Object.entries(state.sessions)
+    .filter(([, s]) => s && now - (s.activeAt || 0) <= windowMs)
+    .map(([chatId, s]) => ({ chatId, username: s.username || '', name: s.name || '', activeAt: s.activeAt || 0 }))
+    .sort((a, b) => b.activeAt - a.activeAt);
+}
+
 module.exports = {
   addPendingAdminReply,
   findPendingAdminReply,
   loadSupportState,
+  recentSupportSessions,
   saveSupportState,
   touchSession
 };

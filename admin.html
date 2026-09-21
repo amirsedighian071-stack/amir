@@ -201,6 +201,32 @@
             <span class="sync-pill" id="syncStatus"><i class="fas fa-circle-notch fa-spin"></i> در حال بررسی همگام‌سازی…</span>
         </div>
 
+        <div id="maintenanceBanner" class="storage-banner" role="alert" hidden>
+            <div class="storage-banner-text">
+                <i class="fas fa-hammer"></i>
+                <div><b>حالت بروزرسانی فعال است</b> — بازدیدکنندگان در همهٔ صفحات فقط صفحهٔ «در حال بروزرسانی» را می‌بینند و به بقیهٔ سایت دسترسی ندارند. پنل مدیریت برای شما باز است.</div>
+                <button id="maintenanceOffBtn" type="button" class="btn btn-outline btn-sm"><i class="fas fa-power-off"></i> برگرداندن سایت به دسترس</button>
+            </div>
+        </div>
+
+        <div class="admin-card" id="maintenanceCard">
+            <h3><i class="fas fa-hammer"></i> حالت بروزرسانی کل سایت</h3>
+            <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:1rem;">با فعال‌کردن این حالت، کل سایت از دسترس خارج می‌شود و فقط یک صفحهٔ انیمیشنی با متن «در حال بروزرسانی سایت هستیم، صبور باشید» به بازدیدکنندگان نمایش داده می‌شود. پنل مدیریت همچنان در دسترس شما می‌ماند.</p>
+            <div class="toggle-row">
+                <div style="font-weight:600;">سایت در حالت بروزرسانی باشد؟</div>
+                <label class="switch"><input type="checkbox" id="maintenanceToggle"><span class="slider"></span></label>
+            </div>
+            <div class="row-2">
+                <div class="form-group"><label>عنوان صفحهٔ بروزرسانی (فارسی)</label><input type="text" id="mtTitle" maxlength="80"></div>
+                <div class="form-group"><label>توضیح صفحهٔ بروزرسانی (فارسی)</label><input type="text" id="mtDesc" maxlength="160"></div>
+            </div>
+            <div class="row-2">
+                <div class="form-group"><label>عنوان (English)</label><input type="text" id="mtTitleEn" maxlength="80" dir="ltr" style="text-align:left;"></div>
+                <div class="form-group"><label>توضیح (English)</label><input type="text" id="mtDescEn" maxlength="160" dir="ltr" style="text-align:left;"></div>
+            </div>
+            <button class="btn btn-primary btn-sm" id="saveMaintenanceTexts"><i class="fas fa-save"></i> ذخیرهٔ متن‌های صفحهٔ بروزرسانی</button>
+        </div>
+
         <div id="storageBanner" class="storage-banner" role="alert">
             <div class="storage-banner-text">
                 <i class="fas fa-exclamation-circle"></i>
